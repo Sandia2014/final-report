@@ -53,7 +53,7 @@
 
 % \usepackage{graphicx}           % More control over graphic inclusion.
 % \usepackage{amsthm}             % AMS theorem styles
-
+\setcounter{tocdepth}{2}
 
 %%% Load all other packages before this point.
 
@@ -97,25 +97,22 @@
 %%% So, some questions.
 
 %% What is the name of the company or organization sponsoring your project?
-\sponsor{The Juvenile Corporation}
+\sponsor{Sandia National Laboratories}
 
 %% What is the title of your report?
-\title{Our Clinic Report}
+\title{Parallelizing Intrepid Tensor Contractions Using Kokkos}
 
 %% Who are the authors of the report (your team members)?  (Separate
 %% names with \and.)
-\author{Student A \and Student B \and Student C \and Student D~(Project Manager)}
+\author{Brett Collins~(Project Manager) \and Alex Gruver \and Ellen Hui \and
+Tyler Marklyn}
 
 %% What is your faculty advisor's name?  (Again, separate names with
 %% \and, if necessary.)
-\advisor{Joseph Bloggs}
+\advisor{Jeff Amelang}
 
 %% Liaison's name or names?
-\liaison{Samuel Neal}
-
-%% Did you have an outside consultant help you with this project?  Put
-%% their names in the \consultant command.
-\consultant{Roger Jones}
+\liaison{H. Carter Edwards}
 
 %% By not specifying a date with the \date command, the date the
 %% document is typeset will be added.
@@ -267,29 +264,28 @@
 %%% chapter1, chapter2, etc!).  .
 
 
-%%% Chapter 1
+\include{intro_sandia}          % tyler
+    % Background
+    % Problem
+    % CPU vs GPU
+    % Kokkos
 
-\include{a_chapter}
+\include{intro_intrepid}        % ellen
+    % Tensor Contractions in general
+    % Intrepid specific contractions 
+    % Serial snippets and descriptions
 
-%%% Chapter 2
+\include{parallelism}           % brett, ellen, alex
+    % Flat parallelism (Brett)
+    % Reduction (Ellen)
+    % Slicing (Alex)
+    % Tiling (Alex)
 
-\include{another_chapter}
+\include{kokkos_experience}    % brett
+    % Performance 
+    % Code snippet
 
-%%% Chapter 3
-
-\include{still_another_chapter}
-
-%%% Chapter 4
-
-\include{yet_another_chapter}
-
-%%% Chapter 5
-
-\include{one_more_chapter}
-
-%%% Chapter 6
-
-\include{possibly_the_last_chapter}
+\include{performance_review}    % tyler
 
 
 %%% Appendices.
