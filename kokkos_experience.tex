@@ -1,4 +1,56 @@
 % Brett
 \chapter{Experience with Kokkos}
 \section{Performance}
+%Comparing Kokkos to Cuda and OpenMP
+%Doing this for sanity check
+%How we did this (used same algorithm and ran both, timed)
+%some graphical results
+%analysis of the results and differences
+%conclusion that they are very similar performing
+A feature that many programmers consider when deciding what the best solution is
+to solve their problem, is performance. Since Kokkos uses Cuda and OpenMP as a
+backend we thought that it was important to do some testing to ensure that
+Kokkos performs as well as these two solutions. If Kokkos's performance was
+worse then Cuda's or OpenMP's then programmers would use these other solutions
+instead. The good news for Kokkos is that in our testing it performs almost
+identically to Cuda and OpenMP. We did not spend an extensive amount of time
+confirming our results. After a few pieces of supporting data we assumed that
+the rest would give similar results because there is no information or evidence
+that should give us reason to believe this trend will change. The rest of this
+section will describe our strategy for testing performance of Kokkos versus Cuda
+and Kokkos versus OpenMP, present graphs showing the differences observed,
+analysis of these graphs, and then finally our concluding thoughts on the topic.
+\\
+\\
+The general method that was used to create performance data for Kokkos, Cuda,
+and OpenMP was to write algorithmically equivalent code for all three, make sure
+that the layout of the data is the same, then time the runtime of each (one
+after another). This process is pretty simple, but there is always noise in
+timing. That is why we repeated the same exact calcuation five times and 
+then use the average time. A couple things that should be noted include: we are
+unsure how Kokkos does a reduction in the team_reduce() function, meaning we
+could not write a Cuda reduction that we knew was algorithm equivalent and we
+can not be sure that the compilers do the same optimizations. Although
+we could have asked Dr. Carter Edwards (our liaison and one of the creators of 
+Kokkos), the project's priorities had changed and it was decided to not pursue
+this further. Regarding the second note, we tried to manually do some code
+optimizations that compilers can handle in order to make sure the amount of work
+each algorithm was the same (which is expected). Of course if one compiler has
+more advanced optimization techniques that is a benefit that should not be
+overlooked, but the goal of this testing was not to test performance against
+ease of coding, but rather the overall performance differences of Kokkos to 
+Cuda and Kokkos to OpenMP. \\
+\\
+
+
 \section{Snippets}
+%Amount of work the programmer has to do is important
+%control and complexity of code is important
+%Much more complex than OpenMP, but follows a different paradigm
+%Very similar to Cuda, except kernel is a functor
+%Overall a pretty easy language, some magic values but pretty good
+
+\section{Bugs}
+
+\section{Personal Experience and Thoughts}
+
