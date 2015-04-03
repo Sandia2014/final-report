@@ -1,6 +1,149 @@
 % Ellen
 \chapter{Intrepid}
+Intrepid is a C++ library developed as part of Sandia's Trilinos Project,
+providing algebraic operations over multi-dimensional arrays.  Tensor
+contractions are one class of tools implemented by Intrepid, widely used in
+high-performance simulation software.
+
+One particular type of tensor contraction, two-dimensional matrix
+multiplication, is known to show great speedup when implemented using CPU and
+especially GPU parallelism.  For this reason among others, the team considered
+Intrepid tensor contractions to have good theoretical potential to derive
+significant performance gains from parallelism.
+
 \section{Tensor Contractions}
-\section{Intrepid Contractions}
-\section{Snippets}
+% TODO
+
+\section{Intrepid Contractions Overview}
+Intrepid provides nine types of tensor contraction, differing by input
+dimensionality, number of indices contracted away, and output dimensionality.
+It is most simple to classify Intrepid's tensor contractions by number of
+indices contracted away and output dimensionality.
+
+Intrepid tensor contractions contract away one, two, or three indices.  The
+output of a single contraction can be a scalar (zero-dimensional), a vector
+(one-dimensional), or a matrix (two-dimensional).  Each combination of number of
+contraction indices and output dimension is handled by one Intrepid tensor
+contraction kernel.
+
+\begin{table}[ht]
+        \begin{tabular} {| l | l | l | l |l |}
+            \hline
+            \textbf{Kernel Name} & \textbf{Left Input} & \textbf{Right Input} &
+            \textbf{Output} & \textbf{Contraction Indices}\\
+            \hline
+            ContractDataDataScalar   & 1D & 1D & Scalar & One \\
+            ContractDataDataVector   & 2D & 2D & Scalar & Two \\
+            ContractDataDataTensor   & 3D & 3D & Scalar & Three \\
+            ContractDataFieldScalar  & 2D & 1D & Vector & One \\
+            ContractDataFieldVector  & 3D & 2D & Vector & Two \\
+            ContractDataFieldTensor  & 4D & 3D & Vector & Three \\
+            ContractFieldFieldScalar & 2D & 2D & Matrix & One \\
+            ContractFieldFieldVector & 3D & 3D & Matrix & Two \\
+            ContractFieldFieldTensor & 4D & 4D & Matrix & Three \\
+            \hline
+        \end{tabular}
+\caption{Summary of the nine Intrepid tensor contraction kernels
+\label{tab:IntrepidContractionSummary}}
+\end{table}
+
+In order to more easily discuss specific tensor contraction kernels in Intrepid,
+it helps to first understand the naming convention used for the kernel names.
+Each kernel's name contains two suffixes, where the first indicates the
+dimensionality of the output and the second indicates the number of contraction
+indices.
+
+\begin{table}[ht]
+    \begin{center}
+        \begin{tabular} {| l | l | l |}
+            \hline
+            \textbf{String} & \textbf{Position} & \textbf{Meaning} \\
+            \hline
+            DataData    & First Suffix  & Scalar Output    \\
+            DataField   & First Suffix  & Vector Output    \\
+            FieldField  & First Suffix  & Matrix Output    \\
+            Scalar      & Second Suffix & One Contraction Index \\
+            Vector      & Second Suffix & Two Contraction Indices \\
+            Tensor      & Second Suffix & Three Contraction Indices \\
+            \hline
+        \end{tabular}
+    \end{center}
+\caption{Intrepid tensor contraction suffixes
+\label{tab:IntrepidNamingConvention}}
+\end{table}
+
+For instance, the first suffix \texttt{DataData} is used for kernels that
+produce scalar outputs, and the second suffix \texttt{Scalar} is used for
+kernels that contract away one dimension.  Therefore, the Intrepid kernel
+\texttt{ContractDataDataScalar} produces scalar outputs and contracts away one
+dimension, and so by necessity the inputs for a single contraction must be
+vectors.  All of the Intrepid tensor contraction kernel suffixes are summarized
+in Table~\ref{tab:IntrepidNamingConvention}.  The nine tensor contractions in
+Intrepid are summarized in Table~\ref{tab:IntrepidContractionSummary}.
+
+Note that the tensor contraction kernels in Intrepid each actually performs many
+contractions; for instance, \texttt{ContractDataDataScalar}, which performs
+contractions of two input vectors to a single output scalar (dot product),
+actually calculates an array of dot products.  That is, the inputs are both
+arrays of vectors, and the output is an array of scalars.  This is represented
+in the code using a dummy index, which we call the \texttt{Cell} index.
+
+\section{ContractDataDataScalar}
+\texttt{ContractDataDataScalar} is the simplest tensor contraction in Intrepid.
+The kernel takes two arrays of vectors and outputs an array of scalars. A
+snippet showing the simple serial implementation of
+\texttt{ContractDataDataScalar} can be seen in
+Figure~\ref{lst:ContractDataDataScalarSerial}.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numCells; ++c) {
+        for (int qp = 0; qp < quadraturePoints; ++qp) {
+            output[c] += leftInput[c][qp] * rightInput[c][qp];
+        }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractDataDataScalar}
+\label{lst:ContractDataDataScalarSerial}} 
+\end{figure}
+
+As shown in 
+Figure~\ref{lst:ContractDataDataScalarSerial}, this kernel contracts away the
+\texttt{Quadrature Points} dimension, leaving only the \texttt{Cell} dimension 
+
+\section{ContractDataDataVector}
+% TODO
+% DataDataVector = (c, p, t)      * (c, p, t)      -> (c)
+
+\section{ContractDataDataTensor}
+% TODO
+% DataDataTensor = (c, p, t1, t2) * (c, p, t1, t2) -> (c)
+
+
+
+\section{ContractDataFieldScalar}
+% TODO
+% DataFieldScalar = (c, l, p)         * (c, p)         -> (c, l)
+
+\section{ContractDataFieldVector}
+% TODO
+% DataFieldVector = (c, l, p, t)      * (c, p, t)      -> (c, l)
+
+\section{ContractDataFieldTensor}
+% TODO
+% DataFieldTensor = (c, l, p, t1, t2) * (c, p, t1, t2) -> (c, l)
+
+
+
+\section{ContractFieldFieldScalar}
+% TODO
+% FieldFieldScalar = (c, l, p)         * (c, r, p)         -> (c, l, r)
+
+\section{ContractFieldFieldVector}
+% TODO
+% FieldFieldVector = (c, l, p, t)      * (c, l, p, t)      -> (c, l, r)
+
+\section{ContractFieldFieldTensor}
+% TODO
+% FieldFieldTensor = (c, l, p, t1, t2) * (c, r, p, t1, t2) -> (c, l, r)
 
