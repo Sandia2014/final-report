@@ -41,7 +41,44 @@ overlooked, but the goal of this testing was not to test performance against
 ease of coding, but rather the overall performance differences of Kokkos to 
 Cuda and Kokkos to OpenMP. \\
 \\
-
+Now we will look at some of the performance differences and similarities of
+Kokkos, Cuda, and OpenMP. Here is a graph that shows the raw times of Kokkos
+Cuda, Cuda, Kokkos OpenMP, and OpenMP:
+$$\begin{figure}
+\includegraphics{CDDS_RawTimes_2d_largestSize_Comparison.pdf}
+\caption{This graph plots the performance of Kokkos Cuda, Cuda, Kokkos OpenMP,
+and OpenMP for ContractDataDataScalar with a memory size of 1 GB. 
+The y-axis is time in
+seconds, so closer to 0 is better. The x-axis plots different contraction sizes
+in order to compare multiple points.}
+\end{figure}$$
+Notice how in this graph Kokkos OpenMP and OpenMP are almost perfectly
+overlapping with Kokkos OpenMP. We are not quite sure why they are not perfectly
+overlapping, but it appears that it is not random noise because it is pretty
+consistent in this graph. However, the difference is so small it seems
+insignificant. \\
+\\
+KokkosCuda versus Cuda, on the other hand, has some big differences. They are
+identical for the smaller problems but diverge a significant amount for bigger
+problems. One of the theories that we have as to why this trend exists is that
+Kokkos may use a different block size than what we use in our Cuda algorithm.
+We believe the reason this doesn't effect the smaller problem sizes is because
+in both cases the maximum number of threads per block isn't being utilized, so
+it does not make a difference, but clearly does in the bigger problem sizes.
+$$\begin{figure}
+\includegraphics{CFFS_RawTimes_2d_largestSize_Comparison.pdf}
+\caption{This graph shows performance differences (or similarities in our case)
+of the nested parallelism approach slicing.}
+\end{figure}$$
+In this graph it is clear that the Cuda slicing performance is almost identical
+to the Kokkos slicing performance. This is important to show that both Kokkos's
+and Cuda's use of shared memory results in the same performance. \\
+\\
+Overall, after seeing a handful of graphs that show Kokkos performs almost
+identically to Cuda and to OpenMP, we accepted that Kokkos is not adding any
+unneeded overhead. As stated before, there may be slight differences due to
+compiler optimizations, but Kokkos seems to perform identically to the other
+multithreading solutions.
 
 \section{Snippets}
 %Amount of work the programmer has to do is important
@@ -49,6 +86,41 @@ Cuda and Kokkos to OpenMP. \\
 %Much more complex than OpenMP, but follows a different paradigm
 %Very similar to Cuda, except kernel is a functor
 %Overall a pretty easy language, some magic values but pretty good
+Another major factor that plays into whether or not a programmer uses a certain
+language, feature, library, etcetera, is code complexity and ease of coding.
+Although this can be subjective, there are a couple differences between the
+language we would like to point out, especially regarding amount of code
+required compared to Cuda or OpenMP (although comparing to OpenMP may be unfair)
+and intuitiveness of the code (or readability). \\
+\\
+Regarding the amount of code required, comparing Kokkos to OpenMP does not seem
+fair. Comparing OpenMP to almost anything seems unfair, because OpenMP requires
+very little code and most of the work is done for you. Although OpenMP only
+works on the CPU which is why it does not require the extra code that Kokkos
+requires. In general, OpenMP cannot be compared to Kokkos. If the programmer
+knows the code only needs to be multithreaded on the CPU and will never need
+more threads then we would strongly advise them to use OpenMP because it is very
+simple. However, that is not the niche that Kokkos is trying to fill. \\
+\\
+Kokkos compared to Cuda however, requires similar amounts of code and has a
+close philosophy. Throughout the code comparison of Cuda and Kokkos we will show
+code snippets and point out the differences and similarities directly. We will
+start by showing the data setup, because the data needs to get onto the GPU
+somehow, then we will move compare and contrast the Cuda kernel and the Kokkos
+functor. 
+\\
+Here is code that shows the setup of the data on the GPU for Cuda:
+$$\begin{figure}
+\end{figure}$$
+There are essentially thress steps in the process: declaring a pointer to the
+data on the CPU, creating an array with the correct size on the GPU, then
+copying the data over to the GPU from wherever the data is currently kept on the
+CPU. This process is pretty simple and self-explanatory. Now let us compare that
+to Kokkos:
+$$\begin{figure}
+\end{figure}$$
+Our code starts with typedefs, although they are not required it is clear that
+they are helpful because they are more compact 
 
 \section{Bugs}
 
