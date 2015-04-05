@@ -98,9 +98,9 @@ Figure~\ref{lst:ContractDataDataScalarSerial}.
 \begin{figure}[ht]
     \begin{lstlisting}
     for (int c = 0; c < numCells; ++c) {
-        for (int qp = 0; qp < quadraturePoints; ++qp) {
-            output[c] += leftInput[c][qp] * rightInput[c][qp];
-        }
+      for (int qp = 0; qp < quadraturePoints; ++qp) {
+        output[c] += leftInput[c][qp] * rightInput[c][qp];
+      }
     }
     \end{lstlisting}
 \caption{Code from serial \texttt{ContractDataDataScalar}
@@ -109,41 +109,213 @@ Figure~\ref{lst:ContractDataDataScalarSerial}.
 
 As shown in 
 Figure~\ref{lst:ContractDataDataScalarSerial}, this kernel contracts away the
-\texttt{Quadrature Points} dimension, leaving only the \texttt{Cell} dimension 
+\texttt{Quadrature Points} dimension, leaving only the \texttt{Cell} dimension.
+It can also be thought of as an array of dot products.
 
 \section{ContractDataDataVector}
-% TODO
-% DataDataVector = (c, p, t)      * (c, p, t)      -> (c)
+\texttt{ContractDataDataVector} takes two arrays of two-dimensional tensors
+(matrices) and computes an array of their inner products.
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numCells; ++c) {
+      for (int qp = 0; qp < quadraturePoints; ++qp) {
+        for (int t = 0; t < iVec; ++t) {
+          output[c] += leftInput[c][qp][t] * rightInput[c][qp][t];
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractDataDataVector}
+\label{lst:ContractDataDataVectorSerial}} 
+\end{figure}
+
+As shown in Figure~\ref{lst:ContractDataDataVectorSerial},
+\texttt{ContractDataDataVector} is very similar to
+\texttt{ContractDataDataScalar}, except it contracts two indices instead of
+one.
 
 \section{ContractDataDataTensor}
-% TODO
-% DataDataTensor = (c, p, t1, t2) * (c, p, t1, t2) -> (c)
+\texttt{ContractDataDataTensor} takes two arrays of three-dimensional tensors
+and computes an array of their inner products.
 
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numCells; ++c) {
+      for (int qp = 0; qp < quadraturePoints; ++qp) {
+        for (int t1 = 0; t1 < iVec1; ++t1) {
+          for (int t2 = 0; t2 < iVec2; ++t2) {
+            output[c] += leftInput[c][qp][t1][t2] * 
+                         rightInput[c][qp][t1][t2];
+          }
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractDataDataTensor}
+\label{lst:ContractDataDataTensorSerial}} 
+\end{figure}
 
+As shown in Figure~\ref{lst:ContractDataDataTensorSerial},
+\texttt{ContractDataDataTensor} is very similar to\\
+\texttt{ContractDataDataVector} and \texttt{ContractDataDataScalar}, but has
+three contraction indices.
 
 \section{ContractDataFieldScalar}
-% TODO
-% DataFieldScalar = (c, l, p)         * (c, p)         -> (c, l)
+
+\texttt{ContractDataFieldScalar} takes an array of matrices and an array of
+vectors and contracts away one index.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numcells; ++c) {
+      for (int l = 0; l < lbf; ++l) {
+        for (int qp = 0; qp < quadraturepoints; ++qp) {
+          output[c][l] += left[c][l][qp] * right[c][qp];
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractDataFieldScalar}
+\label{lst:ContractDataFieldScalarSerial}} 
+\end{figure}
+
+As shown in Figure~\ref{lst:ContractDataFieldScalarSerial},
+\texttt{ContractDataFieldScalar} has two non-contraction indices, the
+\texttt{Left Basis Function} index and the dummy \texttt{Cell} index.  The
+output for this contraction is therefore an array of vectors instead of an array
+of scalars.
 
 \section{ContractDataFieldVector}
-% TODO
-% DataFieldVector = (c, l, p, t)      * (c, p, t)      -> (c, l)
+\texttt{ContractDataFieldVector} takes an array of three-dimensional tensors and
+an array of vectors, and contracts away two indices to produce an array of
+vectors.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numcells; ++c) {
+      for (int l = 0; l < lbf; ++l) {
+        for (int qp = 0; qp < quadraturepoints; ++qp) {
+          for (int t = 0; t < iVec; ++t) {
+            output[c][l] += left[c][l][qp][t] * right[c][qp][t];
+          }
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractDataFieldVector}
+\label{lst:ContractDataFieldVectorSerial}} 
+\end{figure}
+
+As shown in Figure~\ref{lst:ContractDataFieldVectorSerial},
+\texttt{ContractDataFieldVector} is similar to \texttt{ContractDataFieldScalar},
+but has two contraction indices. 
 
 \section{ContractDataFieldTensor}
-% TODO
-% DataFieldTensor = (c, l, p, t1, t2) * (c, p, t1, t2) -> (c, l)
+\texttt{ContractDataFieldTensor} takes an array of four-dimensional tensors and
+an array of three-dimensional tensors, and contracts away two indices to produce
+an array of vectors.
 
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numcells; ++c) {
+      for (int l = 0; l < lbf; ++l) {
+        for (int qp = 0; qp < quadraturepoints; ++qp) {
+          for (int t1 = 0; t1 < iVec1; ++t1) {
+            for (int t2 = 0; t2 < iVec2; ++t2) {
+              output[c][l] += left[c][l][qp][t1][t2] * right[c][qp][t1][t2];
+            }
+          }
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractDataFieldTensor}
+\label{lst:ContractDataFieldTensorSerial}} 
+\end{figure}
 
+As shown in Figure~\ref{lst:ContractDataFieldTensorSerial},
+\texttt{ContractDataFieldTensor} is similar to \texttt{ContractDataFieldScalar},
+but has three contraction indices. 
 
 \section{ContractFieldFieldScalar}
-% TODO
-% FieldFieldScalar = (c, l, p)         * (c, r, p)         -> (c, l, r)
+\texttt{ContractFieldFieldScalar} takes in two arrays of matrices and performs
+matrix multiplication on each element, yielding an output array of matrices.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numcells; ++c) {
+      for (int l = 0; l < lbf; ++l) {
+        for (int r = 0; r < rbf; ++r) {
+          for (int qp = 0; qp < quadraturepoints; ++qp) {
+            output[c][l][r] += left[c][l][qp] * right[c][r][qp];
+          }
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractFieldFieldScalar}
+\label{lst:ContractFieldFieldScalarSerial}} 
+\end{figure}
+
+As shown in Figure~\ref{lst:ContractFieldFieldScalarSerial},
+\texttt{ContractFieldFieldScalar} has two non-contraction indices, so the output
+is an array of matrices.
 
 \section{ContractFieldFieldVector}
-% TODO
-% FieldFieldVector = (c, l, p, t)      * (c, l, p, t)      -> (c, l, r)
+\texttt{ContractFieldFieldVector} takes two arrays of three-dimensional tensors
+and contracts away two indices, keeping the \texttt{Cell} dummy dimension as
+well as the left and right basis function indices.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numcells; ++c) {
+      for (int l = 0; l < lbf; ++l) {
+        for (int r = 0; r < rbf; ++r) {
+          for (int qp = 0; qp < quadraturepoints; ++qp) {
+            for (int t = 0; t < iVec; ++t) {
+              output[c][l][r] += left[c][l][qp][t] * right[c][r][qp][t];
+            }
+          }
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractFieldFieldVector}
+\label{lst:ContractFieldFieldVectorSerial}} 
+\end{figure}
+
+As shown in Figure~\ref{lst:ContractFieldFieldVectorSerial},
+\texttt{ContractFieldFieldVector} is similar to
+\texttt{ContractFieldFieldScalar}, but with two contraction indices.
 
 \section{ContractFieldFieldTensor}
-% TODO
-% FieldFieldTensor = (c, l, p, t1, t2) * (c, r, p, t1, t2) -> (c, l, r)
+\texttt{ContractFieldFieldTensor} is the most complex of the tensor contraction
+kernels in Intrepid.  This kernel takes two four-dimensional tensors and
+and contracts away three indices, keeping the \texttt{Cell} dummy dimension as
+well as the left and right basis function indices.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    for (int c = 0; c < numcells; ++c) {
+      for (int l = 0; l < lbf; ++l) {
+        for (int r = 0; r < rbf; ++r) {
+          for (int qp = 0; qp < quadraturepoints; ++qp) {
+            for (int t1 = 0; t1 < iVec1; ++t1) {
+              for (int t2 = 0; t2 < iVec2; ++t2) {
+                  output[c][l][r] += left[c][l][r][qp][t1][t2] *
+                  right[c][l][r][qp][t1][t2];
+              }
+            }
+          }
+        }
+      }
+    }
+    \end{lstlisting}
+\caption{Code from serial \texttt{ContractFieldFieldTensor}
+\label{lst:ContractFieldFieldTensorSerial}} 
+\end{figure}
+
+As shown in Figure~\ref{lst:ContractFieldFieldTensorSerial},
+\texttt{ContractFieldFieldTensor} is similar to
+\texttt{ContractFieldFieldScalar}, but with two contraction indices.
 
