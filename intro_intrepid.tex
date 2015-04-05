@@ -12,7 +12,23 @@ Intrepid tensor contractions to have good theoretical potential to derive
 significant performance gains from parallelism.
 
 \section{Tensor Contractions}
-% TODO
+A tensor can be thought of as a multidimensional array.  Tensor contractions are
+algebraic operations over tensors in which pairs of indices, one from each of
+the two input tensors, are ``contracted'' together, reducing the dimensionality
+of the output tensor.  
+
+For instance, two matrices (two-dimensional matrices), can have no indices
+contracted away, yielding a four-dimensional outer product.  If the size of one
+dimension on the left matrix matches the size of one dimension on the right
+matrix, that dimension can be contracted by summing the products of the left and
+right matrix entries for each element in the contraction index.  This is
+standard matrix multiplication.  If the two matrices are of identical size, then
+both indices can be contracted away in an inner product, each element in the
+left matrix multiplied pairwise with the corresponding element int the right
+matrix and summed to yield a scalar output.
+
+Tensor contractions can be generalized to higher-dimension tensors, such as
+three or four-dimensional tensors.
 
 \section{Intrepid Contractions Overview}
 Intrepid provides nine types of tensor contraction, differing by input
