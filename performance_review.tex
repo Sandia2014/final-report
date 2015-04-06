@@ -1,2 +1,28 @@
 % Tyler
-\chapter{Performance}
+
+% Expected vs. Actual Performance of this clinic project
+\chapter{Our Performance}
+
+The original stated goal of this clinic project was to parallelize a number of tensor manipulation 
+kernels in the Intrepid library, and then move on to other kernels that performed more complex 
+computations. However, by the end of our term as a clinic team, we will have only focused our 
+energy on the tensor manipulaiton kernels, without having moved on to any other kernels. The 
+reason for this is twofold:
+
+Firstly, we underestimated the number of obstacles we would encounter over the course of our project. 
+Originally, many of these obstacles stemmed from the fact that no member of our team had written 
+performance-oriented parellel code before beginning work on the project. However, even as we grew more 
+familiar with the concepts involved, we also ran into a number of issues with Kokkos, which is effectively 
+still in an alpha testing stage, and at the beginning of the semester had very little documentation, and 
+a number of other issues that made it difficult to work with. Over winter break, we received a newly updated 
+version of Kokkos that included a few fixes for some of the issues we had been having, along with some new 
+features.
+
+The second reason we never made it to another package was the Kokkos update we received over winter break.
+With the update, we could write team-oriented parallel code, which allowed us to implement algorithms such as
+team reductions, and it allowed us access to shared memory on the GPU. At this point, rather than merely writing 
+flat parallel versions of a larger number of the kernels, we decided to focus more heavily on general parallelization
+techniques using Kokkos teams for tensor contractions in order to find the best way to parallelize our desired kernels.
+As a result of our shift to focusing on team techniques, we spend the entire spring semester working on 
+implementing, testing, and plotting results from from various algorithms as applied to the tensor manipulations library, 
+and never moved on to a second kernel (as we had originally intended to do).
