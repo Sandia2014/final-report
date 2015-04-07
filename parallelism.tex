@@ -2,6 +2,24 @@
 
 % Brett
 \section{Flat Parallelism}
+When the project started, the version of Kokkos installed on our machine did not include teams. That meant that we could not use any algorithms that required shared memory or reductions. We had access to an atomic fetch and add function, but this can cause a huge bottleneck in programs if too many threads are trying to write to the same memory location. This meant we were limited to writing algorithms in which each thread knew its responsibility and did not have to worry about race conditions, in other words it did not interact with other threads in any capacity. In this section we will describe how to write high performing kernels for both the CPU and GPU using this flat parallelism technique. We will also describe some of its shortcomings and which other non-flat parallel algorithms can help fix these shortcomings.
+
+The main factors that greatly effect performance are the thread count, a thread's responsibility, access patterns, and how data is laid out in memory. The first two of which are all linked together and directly effect each other. Figuring out what the thread count for a given problem should be is typically done by breaking down the problem into smaller pieces and calculating how many smaller pieces there are. For example, in ContractFieldFieldScalar, which is many matrix multiplications, it is easy to make one thread do one matrix multiplication meaning the thread count must be equal to the number of cells, or matrix multiplications, that must be calculated. Figuring out the best way to break down the responsibility of a single thread requires looking at the expected problem size. Since the average use case for the example of ContractFieldFieldScalar is one thousand to tens of thousands of cells, with matrix sizes around 
+eight by eight or sixty-four by one hundred twenty-five, it is best to break down the problem into the smallest possible pieces. This is because creating a thread for every cell is ill-advised because that means as little as one thousand threads may be created, which is nowhere near saturating the GPU, which means we want many threads to calculate a single matrix multiplication. Since the one thousand to a couple tens of thousands of cells is the expected use case for all of the contraction problems, the idea of wanting many threads per contraction holds true for all of them. 
+
+The question now is: how many threads per contraction is optimal? Well, looking at our thread count, which is going to be a couple thousands multiplied by the number of threads per contraction, it is best to have anywhere between a couple hundred to a thousand. This will ensure that the GPU is being saturated and the most parallelism is taking place, meaning higher performance. However, the limitation of the threads not being able to interact or write to the same memory location means the most threads per contraction is equal to the number of entries in the output tensor. Looking at our problem size again, the expected output tensor dimensions range from a single number (for any problem that contains DataData in its name), to sixty-four squared (biggest values for numLeftFields and numRightFields which are the dimensions of the output matrix for some problems). This range is smaller than the couple hundred to a thousand that we were hoping for, which means it is best to create a thread per output element per contraction. The thread count and it's responsibility are now known and optimized for our problem sizes. The logic may vary depending on problem size and dimensions, but the goal of saturating the GPU is always the priority.
+
+Now that the number of threads and their responsibility are known, the best access patterns and data layout must be calculated. As described earlier, the best access patterns and data layouts for threads on the CPU are ones that utilize the cache. This means that for the CPU, or when using Kokkos::OpenMP, we want a thread's next memory read to be next to its current memory read. However, on the GPU, or when using Kokkos::Cuda, a thread's memory read should be next to the memory read of the thread right next to it. These two optimizations directly conflict, but lucky for us, Kokkos' View data structure has two layouts, LayoutLeft and LayoutRight, which changes how data is laid out in memory. This means we can use LayoutLeft for one architecture, say Kokkos::Cuda, and LayoutRight for the other, Kokkos::OpenMP. So the trick is figuring out how to arrange the data, or which order to put the indices so that one layout coalesces the memory while the other uses the cache. This is best shown by an example, in ContractFieldFieldScalar there are inputs $A_{c, l, p}$ and $B_{c, r, p}$. Assuming we have a thread per output element in output $C_{c, l, r}$, then we can have the inputs ordered as follows: $A_{c, l, p}$ and $B_{c, r, p}$. When using Kokkos::OpenMP, the Views will be LayoutRight, which means incrementing the rightmost index (in this case $p$ for both inputs $A$ and $B$) will be next to the current data point in memory. So $A_{i, j, k}$ will be right next to $A_{i, j, k+1}$ in memory, while $A_{i, j, k}$ will be very far from $A_{i+1, j, k}$ in memory. Each thread needs to do a dot product of a row in $A$ with a column in $B$, so a thread needs to loop through all of $p$ for the same value of $c$ and $l$ in $A$ and also loop through all of $p$ for the same $c$ and $r$ in $B$. Notice however that all the different value of $p$ in $A$ and $B$, where $c$, $l$, and $r$ are fixed next to each other in memory. This means that it will be cache friendly for any thread. 
+
+Now looking at Kokkos::Cuda with LayoutLeft, memory coalescing depends on what a thread's responsibility is relative the thread before it, meaning to get the best performance the algorithm needs to be smart about which thread does which work. Since $c$ values that differ by 1 are next to each other in memory (because LayoutLeft is being used now), it is best to have thread $x+1$ to do the same work as thread $x$, but for the next cell. For example, thread $x$ is responsible for calculating $C_{i, j, k}$ so thread $x+1$ is responsible for calculating $C_{i+1, j, k}$, this way their memory is always coalesced. 
+
+Finding the best way to layout memory to optimize for both the CPU and GPU is not too difficult. It mainly relies on first finding the best way for caching, then imagine using the opposite layout (left or right) and seeing if there is any way to coalesce the memory. This way one functor can be used, the data layout easily changed, and the performance for both the CPU and GPU will be high. Using this technique we have received many good results, but there are some issues with flat parallelism. First, here are some of examples of the good results:
+
+TODO: Put in graphs of the good speedup times!
+
+The biggest issue with the flat parallelism technique is that there isn't always enough parallelism for the GPU. For all the problems that have DataData in the name, the output is simply an array of numbers, meaning that only one thread per contraction was used. The GPU is great for using tens of thousands of threads to do computation, but when the number of threads is severely limited, the CPU performs much better. For some of our problems, there are test runs where serial CPU code out performed the same problem running on the GPU. This is a scenario that should not happen for these types of problems. The issue is that a small number of threads were created, but there was a lot of work that the thread needed to do. Since CPU's are much faster when comparing a single thread to a single thread on the GPU, it is no surprise the CPU outperforms the GPU in this situation. However to fix it, a threads job needs to be split up between more threads, but this is not allowed in flat parallelism because they threads would need to a mechanism to avoid race conditions when writing to the same location. This is where the reduction method that is described in the next section becomes useful.
+
+So far we have described how to optimize performance using flat parallelism, but there are other algorithms that perform even better than flat parallelism. These algorithms, which are talked about in the next couple sections, make use of shared memory, which is essentially a user controlled cache on the GPU. However, the reason flat parallelism is useful is because it is less complex since it does not make use of shared memory, easier to code, and creates modest performance boosts on its own. 
 
 % Ellen
 \section{Reduction}
@@ -39,11 +57,204 @@ Using this team-thread paradigm, we explored several methods of implementing
 \texttt{ContractDataDataTensor} using a reduction algorithm.
 
 \subsection{Team Depth 1}
-    %TODO
+    In this reduction algorithm, we assign one team per contraction, and each
+    team has as many threads as there are elements in the \texttt{iVec2}
+    dimension.  Each thread therefore performs $\texttt{numPoints} \times
+    \texttt{iVec1}$ multiplications, and then combines its local sum with that
+    of the other threads in the team.
+
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+
+    float sum = 0;
+    float tsum = 0;
+
+    for (int qp=0; qp < numPoints; ++qp) {
+      for (int t1=0; t1 < iVec1; ++t1) {
+        sum +=  left(threadIndex, qp, t1, _t2) *
+          right(threadIndex, qp, t1, _t2);
+      }
+    }
+
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, iVec2),
+        [&] (const unsigned int& dim, float& localsum) {
+        localsum += sum;
+      }, tsum);
+
+    _output(elementIndex) = tsum;
+    
+ \end{lstlisting}
+\caption{Code from Team Depth 1 reduction functor for \texttt{ContractDataDataTensor}
+\label{lst:ContractDataDataTensorDepth1Functor}} 
+\end{figure}
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    const team_policy reduction_policy(numCells, iVec2);
+    Kokkos::parallel_for(reduction_policy, contractDataDataTensorTeamDepth1Functor );
+    Kokkos::fence();
+ \end{lstlisting}
+\caption{Code from kernel launch for \texttt{ContractDataDataTensor} Team Depth
+1 reduction
+\label{lst:ContractDataDataTensorDepth1Call}} 
+\end{figure}
+
+In Figure~\ref{lst:ContractDataDataTensorDepth1Functor}, we can see that each
+thread loops over the \texttt{numPoints} and \texttt{iVec1} dimensions, and then
+reduces with the other threads in the team.  The call to Kokkos'
+\texttt{parallel\_for} function, seen in
+Figure~\ref{lst:ContractDataDataTensorDepth1Call}, specifies an execution policy
+in which the number of teams launched is \texttt{numCells}, and each team has
+\texttt{iVec1} threads.
+
+\begin{figure}[ht]
+    \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth1_clearCache_shadowfax.pdf}
+\caption{Speedup of ContractDataDataTensor with Team Depth 1 algorithm over
+    serial
+\label{fig:ContractDataDataTensorDepth1}} 
+\end{figure}
+
+As shown in Figure~\ref{fig:ContractDataDataTensorDepth1}, this Team Depth 1
+algorithm performs generally better than serial, but the speedup is minimal.
+Therefore, we explored other reduction algorithms, which we hoped would yield
+more impressive results.
+
 \subsection{Team Depth 2}
-    %TODO
+    This reduction algorithm is similar to the previous one.  As with the Team
+    Depth 1 reduction, we assign one team per contraction.  Each team has
+    $\texttt{iVec1} \times \texttt{iVec2}$ threads, each responsible for
+    \texttt{numPoints} multiplications.  Each thread then combines its local sum
+    with that of the other threads in the team.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+
+    float sum = 0;
+    float tsum = 0;
+
+    for (int qp=0; qp < numPoints; ++qp) {
+        sum +=  left(threadIndex, qp, _t1, _t2) *
+          right(threadIndex, qp, _t1, _t2);
+    }
+
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, iVec2* iVec1),
+        [&] (const unsigned int& dim, float& localsum) {
+        localsum += sum;
+      }, tsum);
+
+    _output(elementIndex) = tsum;
+    
+ \end{lstlisting}
+\caption{Code from Team Depth 2 reduction functor for \texttt{ContractDataDataTensor}
+\label{lst:ContractDataDataTensorDepth2Functor}} 
+\end{figure}
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    const team_policy reduction_policy(numCells, iVec2 * iVec1);
+    Kokkos::parallel_for(reduction_policy, contractDataDataTensorTeamDepth2Functor );
+    Kokkos::fence();
+ \end{lstlisting}
+\caption{Code from kernel launch for \texttt{ContractDataDataTensor} Team Depth
+2 reduction
+\label{lst:ContractDataDataTensorDepth2Call}} 
+\end{figure}
+
+In Figure~\ref{lst:ContractDataDataTensorDepth2Functor}, we can see that each
+thread loops over the \texttt{numPoints} dimension only, and then
+reduces with the other threads in the team.  The call to Kokkos'
+\texttt{parallel\_for} function, seen in
+Figure~\ref{lst:ContractDataDataTensorDepth2Call}, specifies an execution policy
+in which the number of teams launched is \texttt{numCells}, and each team has
+$\texttt{iVec1}\times\texttt{iVec2}$ threads.
+
+\begin{figure}[ht]
+    \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth2_clearCache_shadowfax.pdf}
+\caption{Speedup of ContractDataDataTensor with Team Depth 2 algorithm over
+    serial
+\label{fig:ContractDataDataTensorDepth2}} 
+\end{figure}
+
+As shown in Figure~\ref{fig:ContractDataDataTensorDepth2}, this Team Depth 2
+algorithm always performs better than serial.  In addition, the speedup is
+significant, and for large memory sizes, performs nearly as well as the flat
+parallel algorithm.  Given the necessary overhead of performing a reduction, we
+believe this to be a fairly good algorithm for good performance across the
+board.
+
+However, because the team size is fixed based on the size of the \texttt{iVec1}
+and \texttt{iVec2} dimensions, this algorithm may suffer performance penalties
+or perhaps even bugs if these two dimensions are of unexpected sizes.  A more
+generalizable algorithm therefore would be preferable.
+
 \subsection{Teamstride}
-    %TODO
+    A more robust algorithm is one we call the Teamstride algorithm, in which
+    each contraction is still assigned to a team, but a fixed number of threads
+    are spawned for each team.  These threads treat the three contraction
+    indices (\texttt{numPoints}, \texttt{iVec1}, \texttt{iVec2}) as if they were
+    a single index, each thread striding forwards by the number of threads on
+    this ``combined'' index.  For instance, if this algorithm were run with a
+    team size of sixty-four threads, then the zeroth thread in a team would sum
+    the product of the zeroth elements, the sixty-fourth, the 128th, and so on.
+    
+\begin{figure}[ht]
+    \begin{lstlisting} [basicstyle=\tiny]
+    for (int innerIdx = tIndex; innerIdx < cellSize; innerIdx += thread.team_size() ) {
+      Sane arithmetic version:
+      const unsigned int qp = innerIdx / (iVec1 * iVec2);
+      const unsigned int t1 = (innerIdx \% (iVec1 * iVec2)) / iVec2;
+      const unsigned int t2 = innerIdx \% iVec2;
+
+      sum +=  _leftInput(c, qp, t1, t2) *
+       _rightInput(c, qp, t1, t2);
+    }
+
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, thread.team_size()),
+        [&] (const unsigned int& dummy, float& localsum) {
+        localsum += sum;
+      }, tsum);
+
+    _output(cell) = tsum;
+    \end{lstlisting}
+
+\caption{Code from Teamstride functor for \texttt{ContractDataDataTensor}
+\label{lst:ContractDataDataTensorTeamstrideFunctor}} 
+\end{figure}
+
+\begin{figure}[ht]
+    \begin{lstlisting}[basicstyle=\tiny]
+    const team_policy reduction_policy(numCells, 32);
+    Kokkos::parallel_for( reduction_policy, contractDataDataTensorTeamstrideFunctor );
+    Kokkos::fence();
+    \end{lstlisting}
+\caption{Code from kernel launch for \texttt{ContractDataDataTensor} Teamstride
+\label{lst:ContractDataDataTensorTeamstrideCall}} 
+\end{figure}
+
+As seen in Figure~\ref{lst:ContractDataDataTensorTeamstrideFunctor}, this
+algorithm requires more arithmetic on the part of each thread, and the thread
+is not responsible for looping over a single subset of indices, instead looping
+over all three contraction indices. The corresponding call in
+Figure~\ref{lst:ContractDataDataTensorTeamstrideCall} uses a fixed team size of
+32, unlike the previous two algorithms.
+
+\begin{figure}[ht]
+    \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamStride_clearCache_shadowfax.pdf}
+\caption{Speedup of ContractDataDataTensor with Teamstride algorithm over
+    serial
+\label{fig:ContractDataDataTensorTeamstride}} 
+\end{figure}
+
+As shown in Figure~\ref{fig:ContractDataDataTensorTeamstride}, this algorithm
+always performs better than serial.  Like with Team Depth 2, the speedup is
+significant, and for large memory sizes, performs nearly as well as the flat
+parallel algorithm.  In addition, this algorithm is more robust than Team Depth
+2, since the number of threads per team is not determined by the size of the
+input dimensions.  Therefore, the Teamstride reduction algorithm is likely the
+most generalizable and performant variant of the reduction algorithms, and
+should be explored in tensor contraction functions in which the inputs may
+consist of a few large tensor contractions.
 
 % Alex
 \section{Slicing}
