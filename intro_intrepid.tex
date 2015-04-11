@@ -22,11 +22,20 @@ contracted away, yielding a four-dimensional outer product.  If the size of one
 dimension on the left matrix matches the size of one dimension on the right
 matrix, that dimension can be contracted by summing the products of the left and
 right matrix entries for each element in the contraction index.  This is
-standard matrix multiplication.  If the two matrices are of identical size, then
-both indices can be contracted away in an inner product, each element in the
-left matrix multiplied pairwise with the corresponding element int the right
-matrix and summed to yield a scalar output.
-%TODO: make a picture of matrix multiplication
+standard matrix multiplication, a visual representation of which can be seen in
+Figure~\ref{fig:MatrixMultiplication}.  If the two matrices are of identical
+size, then both indices can be contracted away in an inner product, each element
+in the left matrix multiplied pairwise with the corresponding element in the
+right matrix and summed to yield a scalar output.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[scale = 0.4]{./matrix_mutiplication.png}
+\caption{Standard matrix multiplication.  The horizontal index of the left
+    matrix and the vertical index of the right matrix are contracted away.
+\label{fig:MatrixMultiplication}}
+\end{figure}
+
 
 Tensor contractions can be generalized to higher-dimension tensors, such as
 three or four-dimensional tensors.

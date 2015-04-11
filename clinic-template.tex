@@ -242,12 +242,20 @@ Tyler Marklyn}
 %%% Abstract
 
 \begin{abstract}
-  Your abstract should be a \emph{brief} summary of the contents of
-  your report.  Don't go into excruciating detail here---there's
-  plenty of room for that later.
+  As computer hardware capabilities increase, code parallelism is becoming
+  an increasingly vital part of writing high-performance, computationally
+  expensive code such as that used in scientific computing.  Some problems in
+  the scientific computing fields lend themselves to parallelism on a Graphics
+  Processing Unit (GPU) as well as the more standard Central Processing Unit
+  (CPU), but because these two hardware architectures are dramatically
+  different, code written for one architecture does not easily port to the
+  other.  Sandia National Labs has developed a new C++ library called Kokkos,
+  which addresses this issue by abstracting away the hardware considerations,
+  allowing code to be written once for either the CPU or GPU.  This year, the
+  team used Kokkos to explore parallel algorithms on the CPU and GPU for
+  performing tensor contractions, a class of algebraic operations often used in
+  scientific computing.
 
-  If possible, limit your abstract to a single paragraph, as your
-  abstract may be used in promotional materials for the Clinic.
 \end{abstract}
 
 
