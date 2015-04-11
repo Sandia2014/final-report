@@ -32,7 +32,7 @@ Section~\ref{section:ContractDataDataTensor} for a more complete description of
 this kernel.
 
 The problem with the \texttt{DataData} class of tensor contractions (see
-Table~\ref{tab:IntrepidNamingConvention} is that they all output an array of
+Table~\ref{tab:IntrepidNamingConvention}) is that they all output an array of
 scalars -- that is, each individual contraction produces a scalar output.
 Therefore, using flat parallelism, the greatest number of threads we can spawn
 is one thread per contraction.  Each thread must then perform an entire
