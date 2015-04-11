@@ -26,6 +26,7 @@ standard matrix multiplication.  If the two matrices are of identical size, then
 both indices can be contracted away in an inner product, each element in the
 left matrix multiplied pairwise with the corresponding element int the right
 matrix and summed to yield a scalar output.
+%TODO: make a picture of matrix multiplication
 
 Tensor contractions can be generalized to higher-dimension tensors, such as
 three or four-dimensional tensors.
@@ -88,13 +89,14 @@ indices.
 \label{tab:IntrepidNamingConvention}}
 \end{table}
 
-For instance, the first suffix \texttt{DataData} is used for kernels that
-produce scalar outputs, and the second suffix \texttt{Scalar} is used for
-kernels that contract away one dimension.  Therefore, the Intrepid kernel
-\texttt{ContractDataDataScalar} produces scalar outputs and contracts away one
-dimension, and so by necessity the inputs for a single contraction must be
-vectors.  All of the Intrepid tensor contraction kernel suffixes are summarized
-in Table~\ref{tab:IntrepidNamingConvention}.  The nine tensor contractions in
+For instance, in the \texttt{ContractDataDataScalar} kernel, the first suffix
+\texttt{DataData} is used for kernels that produce scalar outputs, and the
+second suffix \texttt{Scalar} is used for kernels that contract away one
+dimension.  Therefore, the Intrepid kernel \texttt{ContractDataDataScalar}
+produces scalar outputs and contracts away one dimension, and so by necessity
+the inputs for a single contraction must be vectors.  All of the Intrepid tensor
+contraction kernel suffixes are summarized in
+Table~\ref{tab:IntrepidNamingConvention}.  The nine tensor contractions in
 Intrepid are summarized in Table~\ref{tab:IntrepidContractionSummary}.
 
 Note that the tensor contraction kernels in Intrepid each actually performs many
