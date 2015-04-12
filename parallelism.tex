@@ -256,6 +256,13 @@ most generalizable and performant variant of the reduction algorithms, and
 should be explored in tensor contraction functions in which the inputs may
 consist of a few large tensor contractions.
 
+\subsection{Reduction Special Case}
+As mentioned above, the parallel reduction algorithm performs best when in the flat parallel algorithm there is a small number of threads but lots of work per thread. However, we created parallel reduction algorithms for problems that did not have this problem such as ContractFieldFieldScalar which could have as small as eight multiplies for a single thread since $p$ could be as small as 8. As one may guess, this algorithm performs much worse than the flat parallel algorithm. This is because we are creating more threads than necessary and dividing up a small amount of work between at least 32 threads. The work is divided between at least 32 threads because, remembering the architecture of the GPU, there are 32 threads in a warp all of which run in lock step. So in cases where $p < 32$ threads are created that are not used in this reduction algorithm. To mitigate this phenomenon we created a special reduction case.
+
+The special reduction case creates less teams, giving more work per team, if more than half of the threads are being wasted. This means in the case of ContractFieldFieldScalar where 24 threads are wasted, because only 8 need to do the multiply and reduction, one quarter of the teams are created, and each team is responsible for calculating four times as many outputs elements. This case adds the following code: \\
+TODO: Add the special case code!
+
+TODO: Add the graphs comparing special case vs no special case 
 % Alex
 \section{Slicing}
 Another general method we used for these contractions was Slicing. The first step of this method was to load one full contraction from the left matrix into shared memory. Then, we simultaneously computed every output element that was dependent on that contraction as input. The clearest way to explain the algorithm is by example. Consider one of the matrix multiplications in ContractFieldFieldScalar. 
