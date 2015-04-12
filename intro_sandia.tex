@@ -9,7 +9,41 @@ Sandia National Laboratories is a federally funded research and development
 center owned and managed by the Sandia Corporation.  The laboratory's primary
 focus is the maintenance, management, and development of the United States'
 nuclear arsenal.  Sandia also performs research in the fields of supercomputing
-and scientific computing. 
+and scientific computing, which is where our project originates. 
+
+\section{Kokkos}
+
+ The Trilinos Project, developed and maintained by
+Sandia, is a collection of open source libraries intended for use in large-scale
+scientific applications.
+One of the packages in Trilinos is Kokkos, which is designed to aid portability
+and performance in software written for manycore architectures.  
+
+Kokkos attempts to mitigate the issues of architecture dependence 
+by allowing programmers to write their
+code once, and compile for optimization on a variety of manycore architectures.
+This is possible because the library helps manage the allocation of memory across devices for the
+programmer. Kokkos
+also allows users to write thread scalable software by providing an API for
+using fast, non-locking data structures.
+
+However, the Kokkos package is still new and relatively untested.  No
+large-scale projects have yet been written with it.  Some small kernels have
+been rewritten using Kokkos, but there are still many kernels in Trilinos that
+would benefit from increased thread scalable parallelization.
+
+\section{Problem}
+
+The task of this clinic has been to rewrite several kernels, using Kokkos, from libraries within
+Trilinos to be efficient and thread-scalable on manycore architectures.  Sandia benefits from this task in two ways, firstly the performance gains of the kernels will make more efficient use of their computers meaning they can calculate more than currently possible. Secondly, the kernels will be a use case for Kokkos. Since Kokkos is a new technology part of this clinic is to provide user feedback about Kokkos. The last task of this project is to apply what we learned from parallelizing the kernels to create a general algorithm that Sandia developers can apply to other kernels to for performance boosts. Sandia is interested in a method for parallelizing kernels because they do not have research different methods themselves but use the knowledge we learned to make even more of their code base perform at a higher level.
+
+The kernels we focused primarily on were in a tensor manipulation library within Intrepid, a sub-package of Trilinos. 
+The Intrepid package is a library of kernels designed for use by developers who want to reuse large
+parts of their existing code frameworks while gaining access to state of the art
+tools for compatible discretizations of partial differential equations. As such, by improving the 
+performance of these kernels within Intrepid, we can improve performance
+of any number of calculation-heavy simulation libraries that rely on Intrepid to calculate tensor contractions.
+
 
 
 \section{CPU vs GPU}
@@ -59,42 +93,10 @@ with while writing this section:
 \end{itemize}
 
 
-\section{Kokkos}
-
- The Trilinos Project, developed and maintained by
-Sandia, is a collection of open source libraries intended for use in large-scale
-scientific applications.
-One of the packages in Trilinos is Kokkos, which is designed to aid portability
-and performance in software written for manycore architectures.  
-
-Kokkos attempts to mitigate the issues of architecture dependence 
-by allowing programmers to write their
-code once, and compile for optimization on a variety of manycore architectures.
-This is possible because the library helps manage the allocation of memory across devices for the
-programmer. Kokkos
-also allows users to write thread scalable software by providing an API for
-using fast, non-locking data structures.
-
-However, the Kokkos package is still new and relatively untested.  No
-large-scale projects have yet been written with it.  Some small kernels have
-been rewritten using Kokkos, but there are still many kernels in Trilinos that
-would benefit from increased thread scalable parallelization.
 
 
-\section{Problem}
 
-The goal of this clinic has been to rewrite several kernels, using Kokkos, from libraries within
-Trilinos to be efficient and thread-scalable on manycore architectures.  
-These redesigned and reimplemented kernels will be integrated into
-Trilinos' production code, as both a performance improvement and as a use case
-for Kokkos.
 
-We focused primarily on a tensor manipulation library within Intrepid, a sub-package of Trilinos. 
-The Intrepid package is a library of kernels designed for use by developers who want to reuse large
-parts of their existing code frameworks while gaining access to state of the art
-tools for compatible discretizations of partial differential equations. As such, by improving the 
-performance of these kernels within Intrepid, we can improve performance
-of any number of calculation-heavy simulation libraries that rely on Intrepid to calculate tensor contractions.
 
 
 
