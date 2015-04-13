@@ -80,17 +80,21 @@ but performance is at the heart of what Sandia, and others in the supercomputing
 are %TODO is/are?
 interested in.
 
+One of the biggest differences in optimizing for the GPU instead of the GPU is the way memory should be accessed. On the CPU the best memory access pattern is one that makes the most use of the cache. Since caches pull in chunks of memory, all of which are next to each other, at a time, it is best to ask for data directly next to the data just used on the CPU. However, GPUs work very differently. GPUs run their threads in warps. A warp is 32 threads that run in lock step together, which means all 32 threads run the same instruction at the same time. This makes the best memory access patterns on the GPU ones in which the threads in a warp access data directly next to each other, which is called coalescing the memory. As one would guess, coalesced memory is best on the GPU because like the CPU, blocks of memory are pulled into the small caches of the GPU and it is best if all the data the warp requires are pulled in at once instead of over multiple accesses.
+
+The GPU having warps of size 32 effects more than changing the optimized memory access pattern compared to the CPU. Warps also effect the performance of some if statements. Part of the reason conditionals can greatly decrease performance on the GPU is if two threads in a warp take different branches then they both sections in code must be executed. This forces one thread to essentially waste cycles because it does not need to be executing the code in the branch that another thread in its warp requires. 
+
 %TODO WHAT ELSE GOES HERE?
-\subsection{WHAT ELSE GOES HERE?}
-I don't now how in depth you want me to get into GPU architecture. Here is a list of questions I came up 
-with while writing this section:
-\begin{itemize}
-	\item Who is my audience?
-	\item Should I go more in depth?
-	\item Should I talk about caches, and how that's different from CPU to GPU? (i.e. coalesced memory accesses)
-	\item Should there be code snippets here? It's the introduction, so my feeling was no, but we might need more later then.
-	\item Should I mention shared memory, threads, warps, etc.?
-\end{itemize}
+%\subsection{WHAT ELSE GOES HERE?}
+%I don't now how in depth you want me to get into GPU architecture. Here is a list of questions I came up 
+%with while writing this section:
+%\begin{itemize}
+%	\item Who is my audience?
+%	\item Should I go more in depth?
+%	\item Should I talk about caches, and how that's different from CPU to GPU? (i.e. coalesced memory accesses)
+%	\item Should there be code snippets here? It's the introduction, so my feeling was no, but we might need more later %then.
+%	\item Should I mention shared memory, threads, warps, etc.?
+%\end{itemize}
 
 
 
