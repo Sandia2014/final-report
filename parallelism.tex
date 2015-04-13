@@ -15,7 +15,11 @@ Now looking at Kokkos::Cuda with LayoutLeft, memory coalescing depends on what a
 
 Finding the best way to layout memory to optimize for both the CPU and GPU is not too difficult. It mainly relies on first finding the best way for caching, then imagine using the opposite layout (left or right) and seeing if there is any way to coalesce the memory. This way one functor can be used, the data layout easily changed, and the performance for both the CPU and GPU will be high. Using this technique we have received many good results, but there are some issues with flat parallelism. First, here are some of examples of the good results:
 
-TODO: Put in graphs of the good speedup times!
+\begin{figure}[!ht]
+\includegraphics[scale=.8]{CFFS_VersusSerial_kokkosCudaIndependent.pdf}
+\caption{Speedup over serial of the flat parallel algorithm of the ContractFieldFieldScalar kernel. At its best this algorithm runs 60 times faster than serial. The closest corner, where speedup is only about 4 times, does not fit into Sandia's use case of expected problem sizes.
+\label{lst:ContractFieldFieldScalar speedup over serial}} 
+\end{figure}
 
 The biggest issue with the flat parallelism technique is that there isn't always enough parallelism for the GPU. For all the problems that have DataData in the name, the output is simply an array of numbers, meaning that only one thread per contraction was used. The GPU is great for using tens of thousands of threads to do computation, but when the number of threads is severely limited, the CPU performs much better. For some of our problems, there are test runs where serial CPU code out performed the same problem running on the GPU. This is a scenario that should not happen for these types of problems. The issue is that a small number of threads were created, but there was a lot of work that the thread needed to do. Since CPU's are much faster when comparing a single thread to a single thread on the GPU, it is no surprise the CPU outperforms the GPU in this situation. However to fix it, a threads job needs to be split up between more threads, but this is not allowed in flat parallelism because they threads would need to a mechanism to avoid race conditions when writing to the same location. This is where the reduction method that is described in the next section becomes useful.
 
