@@ -182,8 +182,8 @@ Looking at the "guts" of the programs, Cuda has a kernel that is launched where
 all the computation is, while Kokkos uses a functor, almost identical to
 Intel's Thread Building Blocks threading paradigm. However, for programs doing
 the same calculation, the parenthesis operator function in Kokkos' functor is
-almost an exact replica of the code in Cuda's kernel. Here is the code for a
-Cuda kernel for ContractFieldFieldScalar: \\
+almost an exact replica of the code in Cuda's kernel. Look at the code for a Cuda kernel
+for ContractFieldFieldScalar in Figure~\ref{lst:ContractFieldFieldScalar Cuda kernel}: \\
 \begin{figure}[htb]
 	\begin{lstlisting}
 __global__ void
@@ -230,7 +230,8 @@ cudaContractFieldFieldScalar_Flat_kernel(int numContractions,
 \label{lst:ContractFieldFieldScalar Cuda kernel}}
 \end{figure} \\
 \\
-While here is the parenthesis operator code for the Kokkos functor: \\
+Now compare this to the parenthesis operator code for the Kokkos functor in
+Figure~\ref{lst:ContractFieldFieldScalar Kokkos Cuda functor}: \\
 \begin{figure}[htb]
 	\begin{lstlisting}
 KOKKOS_INLINE_FUNCTION
