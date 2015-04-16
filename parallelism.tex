@@ -70,24 +70,24 @@ Using this team-thread paradigm, we explored several methods of implementing
 
 \begin{figure}[ht]
     \begin{lstlisting}
+    // A team does one cell
+    const unsigned int cellIndex = thread.league_rank();
 
     float sum = 0;
-    float tsum = 0;
+    // Each of the _dim1 threads contracts the qp and d1 dimensions
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim2),
+        [&] (const unsigned int dim2, float& localsum) {
+          for (unsigned int qp=0; qp < _numPoints; ++qp) {
+            for (unsigned int d1=0; d1 < _dim1; ++d1) {
+              localsum +=  _leftInput(cellIndex, qp, d1, dim2) *
+                _rightInput(cellIndex, qp, d1, dim2);
+            }
+          }
+      }, sum);
 
-    for (int qp=0; qp < numPoints; ++qp) {
-      for (int t1=0; t1 < iVec1; ++t1) {
-        sum +=  left(threadIndex, qp, t1, _t2) *
-          right(threadIndex, qp, t1, _t2);
-      }
+    if (thread.team_rank() == 0) {
+      _output(cellIndex) = sum;
     }
-
-    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, iVec2),
-        [&] (const unsigned int& dim, float& localsum) {
-        localsum += sum;
-      }, tsum);
-
-    _output(elementIndex) = tsum;
-    
  \end{lstlisting}
 \caption{Code from Team Depth 1 reduction functor for \texttt{ContractDataDataTensor}
 \label{lst:ContractDataDataTensorDepth1Functor}} 
@@ -133,21 +133,26 @@ more impressive results.
 
 \begin{figure}[ht]
     \begin{lstlisting}
+    // A team does one cell
+    const unsigned int cellIndex = thread.league_rank();
 
     float sum = 0;
-    float tsum = 0;
+    // Each of the _dim1 * _dim2 threads qp dimension
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim1 * _dim2),
+        [&] (const unsigned int threadIndex, float& localsum) {
+          const unsigned int dim1 = threadIndex / _dim2;
+          const unsigned int dim2 = threadIndex % _dim2;
 
-    for (int qp=0; qp < numPoints; ++qp) {
-        sum +=  left(threadIndex, qp, _t1, _t2) *
-          right(threadIndex, qp, _t1, _t2);
+          for (unsigned int qp = 0; qp < _numPoints; ++qp) {
+            localsum +=  _leftInput(cellIndex, qp, dim1, dim2) *
+              _rightInput(cellIndex, qp, dim1, dim2);
+          }
+
+      }, sum);
+
+    if (thread.team_rank() == 0) {
+      _output(cellIndex) = sum;
     }
-
-    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, iVec2* iVec1),
-        [&] (const unsigned int& dim, float& localsum) {
-        localsum += sum;
-      }, tsum);
-
-    _output(elementIndex) = tsum;
     
  \end{lstlisting}
 \caption{Code from Team Depth 2 reduction functor for \texttt{ContractDataDataTensor}
@@ -204,22 +209,33 @@ generalizable algorithm therefore would be preferable.
     
 \begin{figure}[ht]
     \begin{lstlisting} [basicstyle=\tiny]
-    for (int innerIdx = tIndex; innerIdx < cellSize; innerIdx += thread.team_size() ) {
-      Sane arithmetic version:
-      const unsigned int qp = innerIdx / (iVec1 * iVec2);
-      const unsigned int t1 = (innerIdx \% (iVec1 * iVec2)) / iVec2;
-      const unsigned int t2 = innerIdx \% iVec2;
+    // A team does one cell
+    const unsigned int cellIndex = thread.league_rank();
 
-      sum +=  _leftInput(c, qp, t1, t2) *
-       _rightInput(c, qp, t1, t2);
+    // Some useful derived constants that we'll reuse
+    const unsigned int dim12 = _dim1 * _dim2;
+    const unsigned int cellSize = _numPoints * dim12;
+
+    float sum = 0;
+
+    Kokkos::parallel_reduce
+      (Kokkos::TeamThreadLoop(thread,cellSize),
+       [&](const unsigned int indexWithinContraction, float & localsum) {
+
+        // Calculate the next element to add (striding by teamsize)
+        const unsigned int qp = indexWithinContraction / dim12;
+        const unsigned int indexWithinTens1Tens2Thing =
+          indexWithinContraction - qp * dim12;
+        const unsigned int iTens1 = indexWithinTens1Tens2Thing / _dim2;
+        const unsigned int iTens2 = indexWithinTens1Tens2Thing - iTens1*_dim2;
+
+        localsum +=  _leftInput(cellIndex, qp, iTens1, iTens2) *
+          _rightInput(cellIndex, qp, iTens1, iTens2);
+      } , sum );
+
+    if (thread.team_rank() == 0) {
+      _output(cellIndex) = sum;
     }
-
-    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, thread.team_size()),
-        [&] (const unsigned int& dummy, float& localsum) {
-        localsum += sum;
-      }, tsum);
-
-    _output(cell) = tsum;
     \end{lstlisting}
 
 \caption{Code from Teamstride functor for \texttt{ContractDataDataTensor}
