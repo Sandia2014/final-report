@@ -16,8 +16,7 @@ to perform more and more optimizations on their codebase. A faster-running progr
 directly relate to greater throughput on simulation results. This is where our clinic project comes in.
 
 Traditionally, speedup was obtained using message passing parallelism (MPI), where many machines
-each work independently on separate problems, or independent parts of a problem in order to 
-improve throughput. The vast
+ work collaboratively on partitioned subdomains of a global problem. The vast
 majority of scientific software produced and used by the national labs relies on
 message passing parallelism to leverage both inter-node and intra-node
 parallelism. In the case of intra-node parallelism, this model pretended that the 
@@ -44,10 +43,12 @@ scientific applications. Our goal is to rewrite some of the kernels within these
 efficient and thread-scalable on manycore architectures.
 
 As well as presenting Sandia with a set of faster kernels, Sandia has also requested that we present them with more general 
-knowledge on parallelizing code. Many of the employees at Sandia are primarily mathematicians, with little experience at 
-writing performant code. Over the course of our clinic project, we have learned a number of pitfalls and techniques for 
-parallelizing code, which we will also present to Sandia in order to maker furhter use of our knowledge. In this way, 
-Sandia can make more of their codebase perform at a higher level.
+knowledge on parallelizing code. Many of the mathematicians, engineers, and scientists at Sandia have little experience writing 
+code for GPUs or large thread count CPUs such as Intel Xeon Phi.
+Over the course of our clinic project, we have learned a number of pitfalls and techniques for 
+parallelizing code. We will present this data to Sandia so they can make furhter use of our knowledge. In this way, 
+Sandia can continue to make more of their codebase perform at a higher level even after the termination of this
+clinic project.
 
 The kernels we focused primarily on during our project were in a tensor manipulation library within Intrepid, 
 a sub-package of Trilinos. 
@@ -99,7 +100,7 @@ pattern called `memory coalescing.'
 
 These differences between ideal CPU code and GPU code mean that code that is written well for one will usually perform poorly 
 on the other. Therefore, code tends to be architecture dependent, meaning that switching to a new architecture 
-often means rewriting an entire codebase. This is not ideal for a company such as Sandia, because Sandia would like 
+often means rewriting an entire codebase. This is not ideal for a national laboratory such as Sandia, because Sandia would like 
 to always be using the most up-to-date architecture, without needing to constantly overhaul their codebase.
 
 
@@ -111,15 +112,19 @@ by allowing programmers to write their code one time using Kokkos, and then comp
 for optimization on a variety of manycore architectures.
 This is possible because the library helps manage the allocation and access of memory across devices for the
 programmer. Kokkos also allows users to write thread scalable software by providing an API for
-using fast, non-locking data structures. Ideally, all of Sandia's codebase would be written using Kokkos, so that 
+using fast, non-locking data structures. Finally, Kokkos provides a concept of `thread teams.' Thread teams are 
+groups of threads that work together to solve a problem. We can imagine a thread team as solving its own parallel 
+problem, and in doing so create nested parallelism structures that get utilized in Section~\ref{reduction}-Section~\ref{tiling}
+
+Ideally, all of Sandia's codebase would be written using Kokkos, so that 
 no more future large overhauls will be required as new architectures are released. For this reason, all of 
 the parallel code we have written for the clinic project has used Kokkos.
 
-However, the Kokkos package is still under development and remains relatively untested. No
-large-scale projects have yet been fully implemented using Kokkos. As such, another function of this clinic project 
+The Kokkos package is still under development and no large-scale projects have yet been fully implemented using Kokkos. 
+As such, another function of this clinic project 
 has been to serve as a testing bed for Kokkos. 
 In this way, Sandia benefits not only from a faster and more future-safe codebase, but also by getting early feedback 
-on the Kokkos project. Sandia hopes for features from Kokkos to eventually be included in the C standard,
+on the Kokkos project. Sandia hopes for features from Kokkos to eventually be included in the C++ standard,
 so any feedback (both positive and negative) we can provide is welcome. 
 
 Additionally, Sandia wishes to 
@@ -128,8 +133,6 @@ computing, namely OpenMP (for CPU parallelism) and Cuda (for GPU parallelism). I
 backends, for compiling on CPUs and GPUs respectively. Therefore, Sandia effectively wishes to show that there is 
 no overhead to using Kokkos rather than one of the more established parallelism solutions. Over the course of our clinic
 project, we have provided Sandia with significant data to support this claim.
-
->>>>>>> e739c20efbe9db040b3c9b1dd420e7310ebedb6c
 
 
 

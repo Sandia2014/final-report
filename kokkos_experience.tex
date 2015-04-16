@@ -60,8 +60,8 @@ insignificant.
 
 KokkosCuda versus Cuda, on the other hand, has some big differences. They are
 identical for the smaller problems but diverge a significant amount for bigger
-problems. One of the theories that we have as to why this trend exists is that
-Kokkos may be launching a different amount of blocks than the number of blocks Cuda launches.
+problems. This trend exists because Kokkos is launching a different amount of blocks than the number of blocks Cuda launches 
+(Kokkos launches fewer blocks, with the intention of reusing them).
 We believe the reason this doesn't effect the smaller problem sizes is because
 the number of blocks that needs to be launched is smaller than the bigger problem sizes, so
 the upper limit of number of blocks launched is not reached, but clearly is in the bigger problem sizes. 
@@ -164,9 +164,26 @@ for (int cell = 0; cell < numContractions; ++cell) {
 \label{lst:ContractFieldFieldScalar Kokkos Cuda Data Setup}}
 \end{figure}
 \\
-The Kokkos code first defines and creates the device and host Views. One of the major differences compared to Cuda is that Kokkos uses its own data structure, a View, instead of an array. This is why we need to use typedefs to define the Views, but the extra work (which honestly is not much of a hassle) allows the programmer much more control over the data. The control also comes at the cost of having to use for loops to copy the data into the host view instead of being able to do a Memcpy. However, this is all initial work that needs to be done once, while the benefit of being able to change the layout of the data by changing the Kokkos::LayoutRight to Kokkos::LayoutLeft is very useful, especially since this allows the programmer to optimize data layout for both the CPU and GPU. Overall, Kokkos' and Cuda's data setup have different philosophies, which makes sense because Kokkos needs to be easily optimized for both the CPU and GPU while Cuda only runs on the GPU. 
+The Kokkos code first defines and creates the device and host Views. One of the
+major differences compared to Cuda is that Kokkos uses its own data structure,
+a View, instead of an array. This is why we need to use typedefs to define the
+Views, but the extra work (which honestly is not much of a hassle) allows the
+programmer much more control over the data. The control also comes at the cost
+of having to use for loops to copy the data into the host view instead of being
+able to do a Memcpy. However, this is all initial work that needs to be done
+once, while the benefit of being able to change the layout of the data by
+changing the Kokkos::LayoutRight to Kokkos::LayoutLeft is very useful,
+especially since this allows the programmer to optimize data layout for both
+the CPU and GPU. Overall, Kokkos' and Cuda's data setup have different
+philosophies, which makes sense because Kokkos needs to be easily optimized for
+both the CPU and GPU while Cuda only runs on the GPU. 
 
-Looking at the "guts" of the programs, Cuda has a kernel that is launched where all the computation is, while Kokkos uses a functor, almost identical to Intel's Thread Building Blocks threading paradigm. However, for programs doing the same calculation, the parenthesis operator function in Kokkos' functor is almost an exact replica of the code in Cuda's kernel. Here is the code for a Cuda kernel for ContractFieldFieldScalar: \\
+Looking at the "guts" of the programs, Cuda has a kernel that is launched where
+all the computation is, while Kokkos uses a functor, almost identical to
+Intel's Thread Building Blocks threading paradigm. However, for programs doing
+the same calculation, the parenthesis operator function in Kokkos' functor is
+almost an exact replica of the code in Cuda's kernel. Look at the code for a Cuda kernel
+for ContractFieldFieldScalar in Figure~\ref{lst:ContractFieldFieldScalar Cuda kernel}: \\
 \begin{figure}[htb]
 	\begin{lstlisting}
 __global__ void
@@ -213,7 +230,8 @@ cudaContractFieldFieldScalar_Flat_kernel(int numContractions,
 \label{lst:ContractFieldFieldScalar Cuda kernel}}
 \end{figure} \\
 \\
-While here is the parenthesis operator code for the Kokkos functor: \\
+Now compare this to the parenthesis operator code for the Kokkos functor in
+Figure~\ref{lst:ContractFieldFieldScalar Kokkos Cuda functor}: \\
 \begin{figure}[htb]
 	\begin{lstlisting}
 KOKKOS_INLINE_FUNCTION
@@ -236,7 +254,13 @@ void operator() (const unsigned int elementIndex) const {
 \label{lst:ContractFieldFieldScalar Kokkos Cuda functor}}
 \end{figure}
 \\
-Although there is some more code for the Kokkos functor (the code required to declare the data members and the constructor), the Kokkos code looks a lot less cluttered. The Kokkos functor does not need to deal with figuring out the thread's ID, because it is an integer given as input, while the Cuda kernel needs to use blockId.x, blockDim.x, etc. Also indexing into the view is easier, especially when changing the layout of the data from LayoutLeft to LayoutRight (or vice versa) because no code changes need to occur in the functor.
+Although there is some more code for the Kokkos functor (the code required to
+declare the data members and the constructor), the Kokkos code looks a lot less
+cluttered. The Kokkos functor does not need to deal with figuring out the
+thread's ID, because it is an integer given as input, while the Cuda kernel
+needs to use blockId.x, blockDim.x, etc. Also indexing into the view is easier,
+especially when changing the layout of the data from LayoutLeft to LayoutRight
+(or vice versa) because no code changes need to occur in the functor.
 
 
 \section{Personal Experience and Thoughts}
@@ -250,11 +274,52 @@ A task of the project was to document our experiences and thoughts about Kokkos,
 
 Our team has never actually been responsible for installing Kokkos on our machine, instead our liaison, Dr. Carter Edwards, did that for us, so we are unable to talk about the difficulties of downloading and installing the Kokkos library on our machine, but we did have lots of trouble trying to compile and linking against Kokkos originally. This was due to the fact that the same flags need to be used when installing and compiling and linking against Kokkos. However, since we did not install Kokkos ourselves and the documentation showing how to compile and link against Kokkos used different flags than what were used during our installation, we struggled for a while. Already this shows how Kokkos' documentation is not as developed as one would like, which we will bring up later, but it is understandable since Kokkos is new. 
 
-Another obstacle that slowed us down when first using, is Kokkos' use of magic words. For example, Kokkos requires the programmer to typedef Kokkos::Cuda or Kokkos::OpenMP to device\_type, and it must be device\_type, not some other name. Although the programmer can easily fix this, if the programmer is unaware of this requirement it can cause a lot of hassle for a while. Every team member ran into this at one time or another, but after a while we got used to it. When following examples we learned to use the same names for the typedefs to make sure that we did not run into another bug with the same nature. Once again documentation would have helped in this situation, but there is not much documentation all we have are examples. On the bright side however, since we were able to write all of our programs by simply following a few examples we were able to see some of Kokkos' intuitiveness. Overall we really enjoy Kokkos' philosophy and structure, which as mentioned before, is almost identical to Intel's Thread Building Blocks (TBB). If you are familiar with TBB then learning Kokkos is almost as simple as learning the syntax because they are in the same paradigm. 
+Another obstacle that slowed us down when first using, is Kokkos' use of magic
+words. For example, Kokkos requires the programmer to typedef Kokkos::Cuda or
+Kokkos::OpenMP to device\_type, and it must be device\_type, not some other
+name. Although the programmer can easily fix this, if the programmer is unaware
+of this requirement it can cause a lot of hassle for a while. Every team member
+ran into this at one time or another, but after a while we got used to it. When
+following examples we learned to use the same names for the typedefs to make
+sure that we did not run into another bug with the same nature. Once again
+documentation would have helped in this situation, but there is not much
+documentation all we have are examples. On the bright side however, since we
+were able to write all of our programs by simply following a few examples we
+were able to see some of Kokkos' intuitiveness. Overall we really enjoy Kokkos'
+philosophy and structure, which as mentioned before, is almost identical to
+Intel's Thread Building Blocks (TBB). If you are familiar with TBB then
+learning Kokkos is almost as simple as learning the syntax because they are in
+the same paradigm. 
 
-As previously mentioned, Kokkos has very little documentation. For any emerging technology it is understandable that the creators choose to focus on functionality instead of documentation, but the documentation needs to catch up at some point. The examples were very helpful in getting us to our end goal of working code, but examples are not as helpful in understanding what exactly is happening, the meaning behind some portions of code, or why certain code is necessary. Documentation would have also been helpful in seeing the default values for functions and Views, as well as the other arguments that could have been passed instead. There were many times we tried to use Google to find information about Kokkos, but many times the information would point to uncommented pieces of code, which is not always helpful in determining what is going on. Overall we believe the documentation for Kokkos needs to improve in order for new users to get past the initial learning curve and spread the word about Kokkos. 
+As previously mentioned, Kokkos has very little documentation. For any emerging
+technology it is understandable that the creators choose to focus on
+functionality instead of documentation, but the documentation needs to catch up
+at some point. The examples were very helpful in getting us to our end goal of
+working code, but examples are not as helpful in understanding what exactly is
+happening, the meaning behind some portions of code, or why certain code is
+necessary. Documentation would have also been helpful in seeing the default
+values for functions and Views, as well as the other arguments that could have
+been passed instead. There were many times we tried to use Google to find
+information about Kokkos, but many times the information would point to
+uncommented pieces of code, which is not always helpful in determining what is
+going on. Overall we believe the documentation for Kokkos needs to improve in
+order for new users to get past the initial learning curve and spread the word
+about Kokkos. 
 
-As a whole, our team's experience with Kokkos has been positive and see that it offers a great alternative to other solutions that allow multithreading on multiple architectures. A quick overview of the benefits of using Kokkos: Kokkos can create multithreaded code on the CPU, GPU, and XeonPhi, Views can easily change the layout of the data, functors seem to keep the code cleaner and more readable than Cuda's kernels, and the fact that Kokkos is a C++ library and not a a new language adds simplicity. Some of the downsides and changes that we believe would improve Kokkos include Views having more layouts than LayoutRight and LayoutLeft, the use of magic words (or lack of using the right magic words) can create bugs that are hard to find, the example code should include comments to describe what is happening, and finally the documentation needs to improve. However, extended use of Kokkos will solve most of these problems except for Views being limited to two layout types, which is why our team had an overall good experience with Kokkos.
+As a whole, our team's experience with Kokkos has been positive and see that it
+offers a great alternative to other solutions that allow multithreading on
+multiple architectures. A quick overview of the benefits of using Kokkos:
+Kokkos can create multithreaded code on the CPU, GPU, and XeonPhi, Views can
+easily change the layout of the data, functors seem to keep the code cleaner
+and more readable than Cuda's kernels, and the fact that Kokkos is a C++
+library and not a a new language adds simplicity. Some of the downsides and
+changes that we believe would improve Kokkos include Views having more layouts
+than LayoutRight and LayoutLeft, the use of magic words (or lack of using the
+right magic words) can create bugs that are hard to find, the example code
+should include comments to describe what is happening, and finally the
+documentation needs to improve. However, extended use of Kokkos will solve most
+of these problems except for Views being limited to two layout types, which is
+why our team had an overall good experience with Kokkos.
 
 %\begin{table}[ht]
 %      \begin{tabular} {| l | l | l | l |l |}
