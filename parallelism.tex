@@ -276,9 +276,9 @@ should be explored in tensor contraction functions in which the inputs may
 consist of a few large tensor contractions.
 
 \subsection{Reduction Special Case}
-As mentioned above, the parallel reduction algorithm performs best when in the flat parallel algorithm there is a small number of threads but lots of work per thread. However, we created parallel reduction algorithms for problems that did not have this problem such as ContractFieldFieldScalar which could have as small as eight multiplies for a single thread since $p$ could be as small as 8. As one may guess, this algorithm performs much worse than the flat parallel algorithm. This is because we are creating more threads than necessary and dividing up a small amount of work between at least 32 threads. The work is divided between at least 32 threads because, remembering the architecture of the GPU, there are 32 threads in a warp all of which run in lock step. So in cases where $p < 32$ threads are created that are not used in this reduction algorithm. To mitigate this phenomenon we created a special reduction case.
+As mentioned above, the parallel reduction algorithm performs best when, in the flat parallel algorithm there is a small number of threads but lots of work per thread. However, we created parallel reduction algorithms for problems that did not have this issue. An example is ContractFieldFieldScalar, which could have as small as eight multiplies for a single thread since $p$ could be as small as eight. As one may guess, this algorithm performs much worse than the flat parallel algorithm. This is because we are creating more threads than necessary and dividing up a small amount of work between at least 32 threads. The work is divided between at least 32 threads because, remembering the architecture of the GPU, there are 32 threads in a warp, all of which run in lock step. So in cases where $p < 32$, threads are created that are not used in this reduction algorithm. To mitigate this phenomenon we created a special reduction case.
 
-The special reduction case creates less teams, giving more work per team, if more than half of the threads are being wasted. This means in the case of ContractFieldFieldScalar where 24 threads are wasted, because only 8 need to do the multiply and reduction, one quarter of the teams are created, and each team is responsible for calculating four times as many outputs elements. This case adds the following code in the functor's operator() function: \\
+The special reduction case creates less teams, giving more work per team, if more than half of the threads in a warp are being wasted. This means in the case of ContractFieldFieldScalar where 24 threads can wasted, because only 8 need to do a multiply then reduction, one quarter of the teams are created, and each team is responsible for calculating four times as many outputs elements. This case adds the code in Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase} to the functor's operator() function. \\
 \begin{figure}[!ht]
     \begin{lstlisting}
 if (numPoints <= 16) {	
@@ -302,23 +302,25 @@ if (numPoints <= 16) {
 
 In the code above if the number of multiplies, which is numPoints for this kernel, is less than 16 then we want one team to do more than one output. This reduces the total number of wasted threads meaning more efficiency and speed. One thing that needs to be noted for the code in the special case is that an atomic\_fetch\_add is used instead of a team reduce. This is due to the fact that there is no team\_reduce function where half the threads reduce to one location while the other half reduce to another location. This has the side effect of requiring the output locations to be 0 before the calculation, while in the "normal" reduction algorithm that is not necessary. 
 
-Another point that needs to be reiterated is that this special case performs worse than the flat parallel algorithm, but its purpose is to increase the performance of a pure reduction algorithm. Here are the graphs that show the effect of using this special case. 
+Another point that needs to be reiterated is that this special case can still perform worse than the flat parallel algorithm, but its purpose is to increase the performance of a pure reduction algorithm. Look at Figure~\ref{CFFSTeamReduceSpecialCaseGraph} that shows the effect of using the special case. Now contrast that to  Figure~\ref{CFFSTeamReduceNoSpecialCaseGraph} that shows the algorithm without the special case. Notice that the flap up for small contraction sizes does not exist for the algorithm not including the special case. The speeds for the small contraction sizes is much slower than the speeds of the same contraction size using the special case.
 
-\begin{figure}[!ht]
+\begin{figure}[!ht] 
     \centering
     \includegraphics[scale = .8]{kokkosCFFSTeamReductionSpecialCase.pdf}
     \caption{Here is a graph showing the special case of Team Reduction algorithm's speedup over serial for ContractFieldFieldScalar. The faster speeds for the smaller contraction size (far left) is where the special case is used. }
+\label{CFFSTeamReduceSpecialCaseGraph}
 \end{figure}
 
-Compare this to the graph of the same exact team reduction without the special if case. Notice that the flap on for small contraction sizes does not exist and is much smaller than the speeds of the same contraction size using the special case.
 
-\begin{figure}[!ht]
+
+\begin{figure}[!ht] 
     \centering
     \includegraphics[scale = .8]{kokkosCFFSTeamReductionNoSpecialCase}
     \caption{ContractFieldFieldScalar team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.}
+\label{CFFSTeamReduceNoSpecialCaseGraph}
 \end{figure}
 
-Overall, the special case of having one team calculate multiple outputs in order to use up all of its threads is worse than the speedup of the flat parallel algorithm. This is just mentioned because we wanted to make sure our reduction algorithm was performing as high as possible. 
+Overall, the special case of having one team calculate multiple outputs in order to use up all of its threads can be worse than the speedup of the flat parallel algorithm. This is just mentioned because we wanted to make sure our reduction algorithm was performing as high as possible. 
 
 % Alex
 \section{Slicing} \label{slicing}
