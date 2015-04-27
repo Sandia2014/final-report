@@ -7,13 +7,13 @@ When the project started, the version of Kokkos installed on our machine did not
 The main factors that greatly effect performance are the thread count, a thread's responsibility, access patterns, and how data is laid out in memory. The first two of which are all linked together and directly effect each other. Figuring out what the thread count for a given problem should be is typically done by breaking down the problem into smaller pieces and calculating how many smaller pieces there are. For example, in ContractFieldFieldScalar, which is many matrix multiplications, it is easy to make one thread do one matrix multiplication meaning the thread count must be equal to the number of cells, or matrix multiplications, that must be calculated. Figuring out the best way to break down the responsibility of a single thread requires looking at the expected problem size. Since the average use case for the example of ContractFieldFieldScalar is one thousand to tens of thousands of cells, with matrix sizes around 
 eight by eight or sixty-four by one hundred twenty-five, it is best to break down the problem into the smallest possible pieces. This is because creating a thread for every cell is ill-advised because that means as little as one thousand threads may be created, which is nowhere near saturating the GPU, which means we want many threads to calculate a single matrix multiplication. Since the one thousand to a couple tens of thousands of cells is the expected use case for all of the contraction problems, the idea of wanting many threads per contraction holds true for all of them. 
 
-The question now is: how many threads per contraction is optimal? Well, looking at our thread count, which is going to be a couple thousands multiplied by the number of threads per contraction, it is best to have anywhere between a couple hundred to a thousand. This will ensure that the GPU is being saturated and the most parallelism is taking place, meaning higher performance. However, the limitation of the threads not being able to interact or write to the same memory location means the most threads per contraction is equal to the number of entries in the output tensor. Looking at our problem size again, the expected output tensor dimensions range from a single number (for any problem that contains DataData in its name), to sixty-four squared (biggest values for numLeftFields and numRightFields which are the dimensions of the output matrix for some problems). This range is smaller than the couple hundred to a thousand that we were hoping for, which means it is best to create a thread per output element per contraction. The thread count and it's responsibility are now known and optimized for our problem sizes. The logic may vary depending on problem size and dimensions, but the goal of saturating the GPU is always the priority.
+The question now is: how many threads per contraction is optimal? Well, looking at our thread count, which is going to be a couple thousand multiplied by the number of threads per contraction, it is best to have anywhere between a couple hundred to a thousand. This will ensure that the GPU is being saturated and the most parallelism is taking place, meaning higher performance. However, the limitation of the threads not being able to interact or write to the same memory location means the most threads per contraction is equal to the number of entries in the output tensor. Looking at our problem size again, the expected output tensor dimensions range from a single number (for any problem that contains DataData in its name), to sixty-four squared (biggest values for numLeftFields and numRightFields which are the dimensions of the output matrix for some problems). This range is smaller than the couple hundred to a thousand that we were hoping for, which means it is best to create a thread per output element per contraction. The thread count and it's responsibility are now known and optimized for our problem sizes. The logic may vary depending on problem size and dimensions, but the goal of saturating the GPU is always the priority.
 
-Now that the number of threads and their responsibility are known, the best access patterns and data layout must be calculated. As described earlier, the best access patterns and data layouts for threads on the CPU are ones that utilize the cache. This means that for the CPU, or when using Kokkos::OpenMP, we want a thread's next memory read to be next to its current memory read. However, on the GPU, or when using Kokkos::Cuda, a thread's memory read should be next to the memory read of the thread right next to it. These two optimizations directly conflict, but lucky for us, Kokkos' View data structure has two layouts, LayoutLeft and LayoutRight, which changes how data is laid out in memory. This means we can use LayoutLeft for one architecture, say Kokkos::Cuda, and LayoutRight for the other, Kokkos::OpenMP. So the trick is figuring out how to arrange the data, or which order to put the indices so that one layout coalesces the memory while the other uses the cache. This is best shown by an example, in ContractFieldFieldScalar there are inputs $A_{c, l, p}$ and $B_{c, r, p}$. Assuming we have a thread per output element in output $C_{c, l, r}$, then we can have the inputs ordered as follows: $A_{c, l, p}$ and $B_{c, r, p}$. When using Kokkos::OpenMP, the Views will be LayoutRight, which means incrementing the rightmost index (in this case $p$ for both inputs $A$ and $B$) will be next to the current data point in memory. So $A_{i, j, k}$ will be right next to $A_{i, j, k+1}$ in memory, while $A_{i, j, k}$ will be very far from $A_{i+1, j, k}$ in memory. Each thread needs to do a dot product of a row in $A$ with a column in $B$, so a thread needs to loop through all of $p$ for the same value of $c$ and $l$ in $A$ and also loop through all of $p$ for the same $c$ and $r$ in $B$. Notice however that all the different value of $p$ in $A$ and $B$, where $c$, $l$, and $r$ are fixed next to each other in memory. This means that it will be cache friendly for any thread. 
+Now that the number of threads and their responsibility are known, the best access patterns and data layout must be calculated. As described earlier, the best access patterns and data layouts for threads on the CPU are ones that utilize the cache. This means that for the CPU, or when using Kokkos::OpenMP, we want a thread's next memory read to be next to its current memory read. However, on the GPU, or when using Kokkos::Cuda, a thread's memory read should be next to the memory read of the thread right next to it. These two optimizations directly conflict, but lucky for us, Kokkos' View data structure has two layouts, LayoutLeft and LayoutRight, which changes how data is laid out in memory. This means we can use LayoutLeft for one architecture, say Kokkos::Cuda, and LayoutRight for the other, Kokkos::OpenMP. So the trick is figuring out how to arrange the data, or which order to put the indices so that one layout coalesces the memory while the other uses the cache. This is best shown by an example, in ContractFieldFieldScalar there are inputs $A_{c, l, p}$ and $B_{c, r, p}$. Assuming we have a thread per output element in output $C_{c, l, r}$, then we can have the inputs ordered as follows: $A_{c, l, p}$ and $B_{c, r, p}$. When using Kokkos::OpenMP, the Views will be LayoutRight, so $A_{i, j, k}$ will be right next to $A_{i, j, k+1}$ in memory, while $A_{i, j, k}$ will be very far from $A_{i+1, j, k}$ in memory. Each thread needs to do a dot product of a row in $A$ with a column in $B$, so a thread needs to loop through all of $p$ for the same value of $c$ and $l$ in $A$ and also loop through all of $p$ for the same $c$ and $r$ in $B$. Notice however that all the different value of $p$ in $A$ and $B$, where $c$, $l$, and $r$ are fixed, are next to each other in memory. This means that it will be cache friendly for any thread. 
 
-Now looking at Kokkos::Cuda with LayoutLeft, memory coalescing depends on what a thread's responsibility is relative the thread before it, meaning to get the best performance the algorithm needs to be smart about which thread does which work. Since $c$ values that differ by 1 are next to each other in memory (because LayoutLeft is being used now), it is best to have thread $x+1$ to do the same work as thread $x$, but for the next cell. For example, thread $x$ is responsible for calculating $C_{i, j, k}$ so thread $x+1$ is responsible for calculating $C_{i+1, j, k}$, this way their memory is always coalesced. 
+Now looking at Kokkos::Cuda which is using a LayoutLeft View, the memory needs to be coalesced to be optimal. Thus, to get the best performance the algorithm needs to be smart about the work that a thread does relative to other nearby threads. Since $c$ values that differ by 1 are next to each other in memory (because LayoutLeft is being used now), it is best to have thread $x+1$ to do the same work as thread $x$, but for the next cell. For example, thread $x$ is responsible for calculating $C_{i, j, k}$ so thread $x+1$ is responsible for calculating $C_{i+1, j, k}$,. This way the memory is always coalesced. 
 
-Finding the best way to layout memory to optimize for both the CPU and GPU is not too difficult. It mainly relies on first finding the best way for caching, then imagine using the opposite layout (left or right) and seeing if there is any way to coalesce the memory. This way one functor can be used, the data layout easily changed, and the performance for both the CPU and GPU will be high. Using this technique we have received many good results, but there are some issues with flat parallelism. First, here are some of examples of the good results:
+Finding the best way to layout memory to optimize for both the CPU and GPU is not too difficult. One technique is to first find the best way for caching, then imagine using the opposite layout (left or right) and seeing if there is any way to coalesce the memory. This way one functor can be used, the data layout can be easily changed, and the performance for both the CPU and GPU will be high. Using this flat parallel technique we have received many good results, an example of which can be seen in Figure~\ref{lst:ContractFieldFieldScalar speedup over serial}, but there are some issues with flat parallelism.
 
 \begin{figure}[!ht]
 \includegraphics[scale=.8]{CFFS_VersusSerial_kokkosCudaIndependent.pdf}
@@ -21,14 +21,13 @@ Finding the best way to layout memory to optimize for both the CPU and GPU is no
 \label{lst:ContractFieldFieldScalar speedup over serial}} 
 \end{figure}
 
-The biggest issue with the flat parallelism technique is that there isn't always enough parallelism for the GPU. For all the problems that have DataData in the name, the output is simply an array of numbers, meaning that only one thread per contraction was used. The GPU is great for using tens of thousands of threads to do computation, but when the number of threads is severely limited, the CPU performs much better. For some of our problems, there are test runs where serial CPU code out performed the same problem running on the GPU. This is a scenario that should not happen for these types of problems. The issue is that a small number of threads were created, but there was a lot of work that the thread needed to do. Since CPU's are much faster when comparing a single thread to a single thread on the GPU, it is no surprise the CPU outperforms the GPU in this situation. However to fix it, a threads job needs to be split up between more threads, but this is not allowed in flat parallelism because they threads would need to a mechanism to avoid race conditions when writing to the same location. This is where the reduction method that is described in the next section becomes useful.
+The biggest issue with the flat parallelism technique is that there isn't always enough parallelism for the GPU. For all the problems that have DataData in the name, the output is simply an array of numbers, meaning that only one thread per contraction can be used. The GPU is great for using tens of thousands of threads to do computation, but when the number of threads is severely limited, the CPU performs much better. For some of our problems, there are test runs where serial CPU code out performed the same problem running on the GPU. This is a scenario that should not happen for these types of problems. The issue is that a small number of threads were created, but there was a lot of work that the thread needed to do. Since CPU's are much faster when comparing a single thread to a single thread on the GPU, it is no surprise the CPU outperforms the GPU in this situation. However to fix it, a thread's job needs to be split up between more threads. As mentioned earlier, this is not allowed in flat parallelism because the threads would need to a mechanism to avoid race conditions when writing to the same location. This is where the reduction method that is described in the next section becomes useful.
 
-So far we have described how to optimize performance using flat parallelism, but there are other algorithms that perform even better than flat parallelism. These algorithms, which are talked about in the next couple sections, make use of shared memory, which is essentially a user controlled cache on the GPU. However, the reason flat parallelism is useful is because it is less complex since it does not make use of shared memory, easier to code, and creates modest performance boosts on its own. 
+Another feature of the GPU that can be leveraged, that is not the flat parallel scope, is shared memory. Shared memory is essentially a user controlled cache on the GPU. Algorithms that use shared memeory will be discussed in Section~\ref{slicing} and Section~\ref{sec:tiling}. The main benefits of not using shared memory are it is easier to code and the speedup of shared memory is relatively small compared to the speedup flat parallel algorithms reap over serial code. 
 
 % Ellen
-\section{Reduction}
-As shown in Figure %FIXME ref relevant graph in the flat parallelism section
-in some cases, flat parallelism can perform very poorly.  One problem with flat
+\section{Reduction} \label{sec:reduction}
+In some cases, flat parallelism can perform very poorly.  One problem with flat
 parallelism is the potential lack of enough parallelism, as in
 \texttt{ContractDataDataTensor}.  \texttt{ContractDataDataTensor} takes two
 input arrays of three-dimensional tensors and produces an array of scalars.  See
@@ -70,24 +69,24 @@ Using this team-thread paradigm, we explored several methods of implementing
 
 \begin{figure}[ht]
     \begin{lstlisting}
+    // A team does one cell
+    const unsigned int cellIndex = thread.league_rank();
 
     float sum = 0;
-    float tsum = 0;
+    // Each of the _dim1 threads contracts the qp and d1 dimensions
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim2),
+        [&] (const unsigned int dim2, float& localsum) {
+          for (unsigned int qp=0; qp < _numPoints; ++qp) {
+            for (unsigned int d1=0; d1 < _dim1; ++d1) {
+              localsum +=  _leftInput(cellIndex, qp, d1, dim2) *
+                _rightInput(cellIndex, qp, d1, dim2);
+            }
+          }
+      }, sum);
 
-    for (int qp=0; qp < numPoints; ++qp) {
-      for (int t1=0; t1 < iVec1; ++t1) {
-        sum +=  left(threadIndex, qp, t1, _t2) *
-          right(threadIndex, qp, t1, _t2);
-      }
+    if (thread.team_rank() == 0) {
+      _output(cellIndex) = sum;
     }
-
-    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, iVec2),
-        [&] (const unsigned int& dim, float& localsum) {
-        localsum += sum;
-      }, tsum);
-
-    _output(elementIndex) = tsum;
-    
  \end{lstlisting}
 \caption{Code from Team Depth 1 reduction functor for \texttt{ContractDataDataTensor}
 \label{lst:ContractDataDataTensorDepth1Functor}} 
@@ -133,21 +132,26 @@ more impressive results.
 
 \begin{figure}[ht]
     \begin{lstlisting}
+    // A team does one cell
+    const unsigned int cellIndex = thread.league_rank();
 
     float sum = 0;
-    float tsum = 0;
+    // Each of the _dim1 * _dim2 threads qp dimension
+    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim1 * _dim2),
+        [&] (const unsigned int threadIndex, float& localsum) {
+          const unsigned int dim1 = threadIndex / _dim2;
+          const unsigned int dim2 = threadIndex % _dim2;
 
-    for (int qp=0; qp < numPoints; ++qp) {
-        sum +=  left(threadIndex, qp, _t1, _t2) *
-          right(threadIndex, qp, _t1, _t2);
+          for (unsigned int qp = 0; qp < _numPoints; ++qp) {
+            localsum +=  _leftInput(cellIndex, qp, dim1, dim2) *
+              _rightInput(cellIndex, qp, dim1, dim2);
+          }
+
+      }, sum);
+
+    if (thread.team_rank() == 0) {
+      _output(cellIndex) = sum;
     }
-
-    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, iVec2* iVec1),
-        [&] (const unsigned int& dim, float& localsum) {
-        localsum += sum;
-      }, tsum);
-
-    _output(elementIndex) = tsum;
     
  \end{lstlisting}
 \caption{Code from Team Depth 2 reduction functor for \texttt{ContractDataDataTensor}
@@ -204,22 +208,33 @@ generalizable algorithm therefore would be preferable.
     
 \begin{figure}[ht]
     \begin{lstlisting} [basicstyle=\tiny]
-    for (int innerIdx = tIndex; innerIdx < cellSize; innerIdx += thread.team_size() ) {
-      Sane arithmetic version:
-      const unsigned int qp = innerIdx / (iVec1 * iVec2);
-      const unsigned int t1 = (innerIdx \% (iVec1 * iVec2)) / iVec2;
-      const unsigned int t2 = innerIdx \% iVec2;
+    // A team does one cell
+    const unsigned int cellIndex = thread.league_rank();
 
-      sum +=  _leftInput(c, qp, t1, t2) *
-       _rightInput(c, qp, t1, t2);
+    // Some useful derived constants that we'll reuse
+    const unsigned int dim12 = _dim1 * _dim2;
+    const unsigned int cellSize = _numPoints * dim12;
+
+    float sum = 0;
+
+    Kokkos::parallel_reduce
+      (Kokkos::TeamThreadLoop(thread,cellSize),
+       [&](const unsigned int indexWithinContraction, float & localsum) {
+
+        // Calculate the next element to add (striding by teamsize)
+        const unsigned int qp = indexWithinContraction / dim12;
+        const unsigned int indexWithinTens1Tens2Thing =
+          indexWithinContraction - qp * dim12;
+        const unsigned int iTens1 = indexWithinTens1Tens2Thing / _dim2;
+        const unsigned int iTens2 = indexWithinTens1Tens2Thing - iTens1*_dim2;
+
+        localsum +=  _leftInput(cellIndex, qp, iTens1, iTens2) *
+          _rightInput(cellIndex, qp, iTens1, iTens2);
+      } , sum );
+
+    if (thread.team_rank() == 0) {
+      _output(cellIndex) = sum;
     }
-
-    Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, thread.team_size()),
-        [&] (const unsigned int& dummy, float& localsum) {
-        localsum += sum;
-      }, tsum);
-
-    _output(cell) = tsum;
     \end{lstlisting}
 
 \caption{Code from Teamstride functor for \texttt{ContractDataDataTensor}
@@ -261,9 +276,9 @@ should be explored in tensor contraction functions in which the inputs may
 consist of a few large tensor contractions.
 
 \subsection{Reduction Special Case}
-As mentioned above, the parallel reduction algorithm performs best when in the flat parallel algorithm there is a small number of threads but lots of work per thread. However, we created parallel reduction algorithms for problems that did not have this problem such as ContractFieldFieldScalar which could have as small as eight multiplies for a single thread since $p$ could be as small as 8. As one may guess, this algorithm performs much worse than the flat parallel algorithm. This is because we are creating more threads than necessary and dividing up a small amount of work between at least 32 threads. The work is divided between at least 32 threads because, remembering the architecture of the GPU, there are 32 threads in a warp all of which run in lock step. So in cases where $p < 32$ threads are created that are not used in this reduction algorithm. To mitigate this phenomenon we created a special reduction case.
+As mentioned above, the parallel reduction algorithm performs best when, in the flat parallel algorithm there is a small number of threads but lots of work per thread. However, we created parallel reduction algorithms for problems that did not have this issue. An example is ContractFieldFieldScalar, which could have as small as eight multiplies for a single thread since $p$ could be as small as eight. As one may guess, this algorithm performs much worse than the flat parallel algorithm. This is because we are creating more threads than necessary and dividing up a small amount of work between at least 32 threads. The work is divided between at least 32 threads because, remembering the architecture of the GPU, there are 32 threads in a warp, all of which run in lock step. So in cases where $p < 32$, threads are created that are not used in this reduction algorithm. To mitigate this phenomenon we created a special reduction case.
 
-The special reduction case creates less teams, giving more work per team, if more than half of the threads are being wasted. This means in the case of ContractFieldFieldScalar where 24 threads are wasted, because only 8 need to do the multiply and reduction, one quarter of the teams are created, and each team is responsible for calculating four times as many outputs elements. This case adds the following code in the functor's operator() function: \\
+The special reduction case creates less teams, giving more work per team, if more than half of the threads in a warp are being wasted. This means in the case of ContractFieldFieldScalar where 24 threads can wasted, because only 8 need to do a multiply then reduction, one quarter of the teams are created, and each team is responsible for calculating four times as many outputs elements. This case adds the code in Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase} to the functor's operator() function. \\
 \begin{figure}[!ht]
     \begin{lstlisting}
 if (numPoints <= 16) {	
@@ -287,26 +302,28 @@ if (numPoints <= 16) {
 
 In the code above if the number of multiplies, which is numPoints for this kernel, is less than 16 then we want one team to do more than one output. This reduces the total number of wasted threads meaning more efficiency and speed. One thing that needs to be noted for the code in the special case is that an atomic\_fetch\_add is used instead of a team reduce. This is due to the fact that there is no team\_reduce function where half the threads reduce to one location while the other half reduce to another location. This has the side effect of requiring the output locations to be 0 before the calculation, while in the "normal" reduction algorithm that is not necessary. 
 
-Another point that needs to be reiterated is that this special case performs worse than the flat parallel algorithm, but its purpose is to increase the performance of a pure reduction algorithm. Here are the graphs that show the effect of using this special case. 
+Another point that needs to be reiterated is that this special case can still perform worse than the flat parallel algorithm, but its purpose is to increase the performance of a pure reduction algorithm. Look at Figure~\ref{CFFSTeamReduceSpecialCaseGraph} that shows the effect of using the special case. Now contrast that to  Figure~\ref{CFFSTeamReduceNoSpecialCaseGraph} that shows the algorithm without the special case. Notice that the flap up for small contraction sizes does not exist for the algorithm not including the special case. The speeds for the small contraction sizes is much slower than the speeds of the same contraction size using the special case.
 
-\begin{figure}[!ht]
+\begin{figure}[!ht] 
     \centering
     \includegraphics[scale = .8]{kokkosCFFSTeamReductionSpecialCase.pdf}
     \caption{Here is a graph showing the special case of Team Reduction algorithm's speedup over serial for ContractFieldFieldScalar. The faster speeds for the smaller contraction size (far left) is where the special case is used. }
+\label{CFFSTeamReduceSpecialCaseGraph}
 \end{figure}
 
-Compare this to the graph of the same exact team reduction without the special if case. Notice that the flap on for small contraction sizes does not exist and is much smaller than the speeds of the same contraction size using the special case.
 
-\begin{figure}[!ht]
+
+\begin{figure}[!ht] 
     \centering
     \includegraphics[scale = .8]{kokkosCFFSTeamReductionNoSpecialCase}
     \caption{ContractFieldFieldScalar team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.}
+\label{CFFSTeamReduceNoSpecialCaseGraph}
 \end{figure}
 
-Overall, the special case of having one team calculate multiple outputs in order to use up all of its threads is worse than the speedup of the flat parallel algorithm. This is just mentioned because we wanted to make sure our reduction algorithm was performing as high as possible. 
+Overall, the special case of having one team calculate multiple outputs in order to use up all of its threads can be worse than the speedup of the flat parallel algorithm. This is just mentioned because we wanted to make sure our reduction algorithm was performing as high as possible. 
 
 % Alex
-\section{Slicing}
+\section{Slicing} \label{slicing}
 Another general method we used for these contractions was Slicing. The first step of this method was to load one full contraction from the left matrix into shared memory. Then, we simultaneously computed every output element that was dependent on that contraction as input. The clearest way to explain the algorithm is by example. Consider one of the matrix multiplications in ContractFieldFieldScalar. 
 
 \begin{figure}
@@ -565,4 +582,5 @@ Excerpts from our implementation of tiling for ContractFieldFieldTensor are incl
       
  \end{lstlisting}
 \end{figure}
+ 
  

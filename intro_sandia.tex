@@ -6,98 +6,147 @@
 \section{Background}
 
 Sandia National Laboratories is a federally funded research and development
-center owned and managed by the Sandia Corporation.  The laboratory's primary
+center owned and managed by the Sandia Corporation. The laboratory's primary
 focus is the maintenance, management, and development of the United States'
-nuclear arsenal.  Sandia also performs research in the fields of supercomputing
-and scientific computing, which is where our project originates. 
+nuclear arsenal. 
 
-\section{Kokkos}
+With the 1996 comprehensive nuclear test ban, Sandia began to
+focus more heavily on computer simulations. These computationally intense
+simulations have pushed Sandia to perform more and more optimizations on their
+codebase, as faster-running programs allow greater throughput on simulation
+results.
 
- The Trilinos Project, developed and maintained by
-Sandia, is a collection of open source libraries intended for use in large-scale
-scientific applications.
-One of the packages in Trilinos is Kokkos, which is designed to aid portability
-and performance in software written for manycore architectures.  
+Traditionally, parallel algorithms used the Message Passing Interface (MPI)
+standard, allowing many machines to work collaboratively on partitioned
+subdomains of a global problem. The vast majority of scientific software
+produced and used by the national labs relies on MPI to leverage both inter-node
+and intra-node parallelism. In the case of intra-node parallelism, this model
+pretends that the various computational engines within a computer are actually
+separate computers. Until the present, this approach of using MPI across a
+single node sacrificed some performance for the ease of a monolithic programming
+model, and the performance penalty had not been high enough to motivate the
+use of threads instead of processes. 
 
-Kokkos attempts to mitigate the issues of architecture dependence 
-by allowing programmers to write their
-code once, and compile for optimization on a variety of manycore architectures.
-This is possible because the library helps manage the allocation of memory across devices for the
-programmer. Kokkos
-also allows users to write thread scalable software by providing an API for
-using fast, non-locking data structures.
-
-However, the Kokkos package is still new and relatively untested.  No
-large-scale projects have yet been written with it.  Some small kernels have
-been rewritten using Kokkos, but there are still many kernels in Trilinos that
-would benefit from increased thread scalable parallelization.
+However, as the exascale push hits the power wall, interest has been growing in
+the area of using higher performing and less power-hungry co-processors for the 
+intra-node parallelism. Unfortunately, this means
+that much existing code will have to be rewritten, as MPI cannot be used to
+leverage the parallelism of co-processors such as Graphical Processing Units
+(GPUs), which are further discussed in Section~\ref{CPU-GPU}.
 
 \section{Problem}
 
-The task of this clinic has been to rewrite several kernels, using Kokkos, from libraries within
-Trilinos to be efficient and thread-scalable on manycore architectures.  Sandia benefits from this task in two ways, firstly the performance gains of the kernels will make more efficient use of their computers meaning they can calculate more than currently possible. Secondly, the kernels will be a use case for Kokkos. Since Kokkos is a new technology part of this clinic is to provide user feedback about Kokkos. The last task of this project is to apply what we learned from parallelizing the kernels to create a general algorithm that Sandia developers can apply to other kernels to for performance boosts. Sandia is interested in a method for parallelizing kernels because they do not have research different methods themselves but use the knowledge we learned to make even more of their code base perform at a higher level.
+The task of this clinic project has been to rewrite several kernels included in
+libraries within Sandia's Trilinos Project. The Trilinos Project is a
+collection of open source libraries intended for use in large-scale scientific
+applications. Specifically, this clinic team aimed to rewrite some of these Trilinos kernels to be
+efficient and thread-scalable on manycore architectures.
 
-The kernels we focused primarily on were in a tensor manipulation library within Intrepid, a sub-package of Trilinos. 
-The Intrepid package is a library of kernels designed for use by developers who want to reuse large
-parts of their existing code frameworks while gaining access to state of the art
-tools for compatible discretizations of partial differential equations. As such, by improving the 
-performance of these kernels within Intrepid, we can improve performance
-of any number of calculation-heavy simulation libraries that rely on Intrepid to calculate tensor contractions.
+As well as presenting Sandia with a set of faster kernels, Sandia has also
+requested that we present a general approach to parallelizing code. Many of the
+mathematicians, engineers, and scientists at Sandia have little experience
+writing code for GPUs or large thread count CPUs such as Intel Xeon Phi. Over
+the course of our clinic project, we have uncovered a number of parallelization pitfalls 
+along with techniques that work well for achieving speedup. By recording our experiences, we hope to
+make it easier for Sandia's engineers to apply similar techniques to more of
+their codebase after the termination of this clinic project.
 
+The kernels we focused on during our project were in a tensor manipulation
+library within Intrepid, a sub-package of Trilinos. The Intrepid package is a
+library of kernels designed for performing discretizations of partial
+differential equations. As such, by improving the performance of these kernels
+within Intrepid, we can improve performance of any calculation-heavy simulation
+libraries that rely on Intrepid to calculate tensor contractions. See
+Chapter~\ref{sec:IntroIntrepid} for more detail on Intrepid.
 
+\section{CPU vs GPU} \label{CPU-GPU}
 
-\section{CPU vs GPU}
-The vast
-majority of scientific software produced and used by the national labs relies on
-message passing parallelism (MPI) to leverage both inter-node and intra-node
-parallelism.  
-Until the present, this approach of using MPI across a single node
-sacrificed some performance for the ease of a monolithic programming model, and
-the performance penalty has not been high enough to motivate the usage of
-threads instead of processes.  However, as the exascale push hits the power
-wall, interest has been growing in the area of using higher performing and less
-power-hungry co-processors on each node, still with message passing across
-nodes.  Unfortunately, this means that much existing code will have to be rewritten, as
-message passing cannot be used to leverage the parallelism of co-processors such
-as Graphical Processing Units (GPUs).
+Most traditional computer programs run on a Central Processing Unit (CPU). CPUs
+are characterized by relatively low thread counts. For reference, a modern personal computer
+usually supports 2-8 hardware threads. A large portion of the chip for a CPU is
+dedicated to caching and other features that in some ways make up for
+programming inefficiencies that would otherwise reduce performance.
 
-GPUs are characterized by high thread counts, decreased memory per thread, and
-relatively small instruction sets when compared to CPUs. These differences lead
-to many advantages when it comes to high performance computing. Since GPUs have
-a smaller instruction set, they can devote more of their transistors to
-arithmetic computation. This means that GPUs are capable of executing
-significantly more floating point operations per second (FLOPS). Additionally,
-GPUs use less power than CPUs, which makes them appealing for supercomputers,
-where power consumption is a major concern.
+Our project has mostly focused on writing code that will run on Graphical
+Processing Units (GPUs). GPUs are characterized by extremely high thread counts
+(for full performance, a GPU requires a \emph{minimum} of 1000 threads),
+decreased memory per thread, and relatively small instruction sets when compared
+to CPUs. In general, this means that programming on a GPU is less forgiving in the 
+sense that sloppy programs will run significantly slower. For this reason,
+despite the much higher level of parallelism afforded by the largee thread
+count, it is easy to write parallel GPU code that runs slower than
+equivalent serial CPU code.
+
+However, GPUs have many advantages when it comes to high performance computing.
+Since GPUs have a smaller instruction set, they can devote more of their
+transistors to arithmetic computation. This means that GPUs are capable of
+executing significantly more floating point operations per second (FLOPS) than
+CPUs. Additionally, GPUs use less power than CPUs, which makes them appealing
+in supercomputers, where power consumption is a major concern.
 
 Well implemented GPU code can yield significant speedup in certain
-processing-heavy applications.  However, the ways in which an algorithm must be
-optimized to run on a GPU are highly dependent on hardware architecture. Additionally, the language
-used to write code that runs on different hardware might actually differ.  Finally, 
-highly parallel code may suffer from race conditions caused by unsafe data accesses.
-Often, using always safe data structures and memory access patterns can reduce performance, 
-but performance is at the heart of what Sandia, and others in the supercomputing industry
-are %TODO is/are?
-interested in.
+processing-heavy applications. Specifically, a problem may work well on a GPU if
+it features high levels of arithmetic computation that can be calculated
+independently; that is, if each calculation does not rely on the results of the other
+calculations. For example, calculating a sequence of Fibonacci numbers is very
+difficult for a GPU, as each number relies on results from the previous two numbers. A 
+more ideal problem for a GPU would be to take two large arrays
+and multiply them element-wise into a third array. When doing element-wise multiplication,
+there is no reliance on previous results, which means that the threads on the GPU will
+never have to wait for one another.
 
-%TODO WHAT ELSE GOES HERE?
-\subsection{WHAT ELSE GOES HERE?}
-I don't now how in depth you want me to get into GPU architecture. Here is a list of questions I came up 
-with while writing this section:
-\begin{itemize}
-	\item Who is my audience?
-	\item Should I go more in depth?
-	\item Should I talk about caches, and how that's different from CPU to GPU? (i.e. coalesced memory accesses)
-	\item Should there be code snippets here? It's the introduction, so my feeling was no, but we might need more later then.
-	\item Should I mention shared memory, threads, warps, etc.?
-\end{itemize}
+Another key consideration when writing high-performance code on any architecture
+is the memory access pattern. Programs invariably need to retrieve data that is
+stored in memory (RAM). On traditional CPU architectures, it is best to access
+this memory sequentially, to take advantage of caching. A single thread of
+execution on the CPU should ideally access memory locations immediately adjacent
+to that same thread's previous access.
 
+However, this is not the case on the GPU. On a GPU, groups of threads called
+\emph{warps} share a cache. For this reason, among others, threads in a warp
+should coordinate their memory accesses such that adjacent threads in
+a warp access adjacent locations in memory, a pattern called 'coalescing'.
 
+These differences between ideal CPU code and GPU code mean that code that is
+written well for one architecture will usually perform poorly on the other if
+ported directly without changing the data structures and memory access patterns.
+Therefore, code tends to be architecture dependent, so switching to a new
+architecture often means rewriting an entire codebase. This is not ideal for
+Sandia, where the mathematicians, engineers and scientists are interested in 
+using the most up-to-date architecture without
+needing to constantly overhaul their codebase.
 
+\section{Kokkos}
 
+In order to mitigate the effects of architecture dependent code overhauls,
+Sandia is developing a C++ library called Kokkos, which is included in the
+Trilinos package. Kokkos attempts to solve the issues of architecture dependence
+by allowing programmers to write their code one time using Kokkos, and then
+compile (or make other small tweaks) for optimization on a variety of
+architectures. This is possible because the library helps manage the allocation
+and access of memory across devices for the programmer. Kokkos also allows users
+to write thread scalable software by providing an API for using fast,
+non-locking data structures. Finally, Kokkos provides a concept of `thread
+teams.' Thread teams are groups of threads that work together to solve a
+problem, and can be used in nested parallelism algorithms such as those detailed
+in Section~\ref{sec:reduction} and Section~\ref{sec:tiling}.
 
+Ideally, all of Sandia's codebase would be written using Kokkos, so that no more
+future large overhauls will be required as new architectures are released. For
+this reason, all of the parallel code we have written for the clinic project has
+used Kokkos.
 
+The Kokkos package is still under development and no large-scale projects have
+yet been fully implemented using Kokkos. As such, another function of this
+clinic project has been to perform a large-scale test of Kokkos. Thus, we hope
+to provide both a faster and more future-safe codebase, and also early feedback
+on the Kokkos project. Sandia hopes for features from Kokkos to eventually be
+included in the C++17 standard, so any feedback (both positive and negative) we
+can provide would be useful.
 
-
-
-
+Additionally, Sandia wishes to verify the claim that Kokkos is not slower than
+other popular methods of thread parallelism for scientific computing, namely
+OpenMP (for CPU parallelism) and Cuda (for GPU parallelism). In fact, Kokkos
+uses OpenMP and Cuda backends, for compiling on CPUs and GPUs respectively. We
+therefore hope to show that there is no overhead to using Kokkos rather than one
+of the more established parallelism solutions.
