@@ -8,17 +8,18 @@ high-performance simulation software.
 
 One particular type of tensor contraction, two-dimensional matrix
 multiplication, is known to show great speedup when implemented using CPU and
-especially GPU parallelism. For this reason among others, the team considered
-Intrepid tensor contractions to have good theoretical potential to derive
+especially GPU parallelism. For this reason, this clinic team considered
+Intrepid tensor contractions to be good targets for parallelism, as they 
+had good theoretical potential to derive
 significant performance gains from parallelism.
 
 \section{Tensor Contractions}
 A tensor can be thought of as a multidimensional array. Tensor contractions are
-algebraic operations over tensors in which pairs of indices, one from each of
-the two input tensors, are ``contracted'' together, reducing the dimensionality
+multiplicative algebraic operations over tensors in which pairs of indices, one from each of
+the two input tensors, can be ``contracted'' together, reducing the dimensionality
 of the output tensor. 
 
-For instance, two matrices (two-dimensional tensors), can have no indices
+As an example, two matrices (two-dimensional tensors), could be contracted with no indices
 contracted away, yielding a four-dimensional outer product. If the size of one
 dimension on the left matrix matches the size of one dimension on the right
 matrix, that dimension can be contracted by summing the products of the left and
@@ -38,11 +39,14 @@ right matrix and summed to yield a scalar output.
 \end{figure}
 
 
-Tensor contractions can be generalized to higher-dimension tensors, such as
-three or four-dimensional tensors.
+In this section, we have discussed the three possiblities for two-dimensional
+tensor contractions. However, tensor contractions also generalize to tensors
+with higher dimensionality, such as three or four dimensional tensors. In 
+these higher dimensional tensors, there are more options for how many contraction 
+indices might exist.
 
 \section{Intrepid Contractions Overview}
-Intrepid provides nine types of tensor contraction, differing by input
+The Intrepid library provides nine types of tensor contraction, differing by input
 dimensionality, number of indices contracted away, and output dimensionality.
 It is most simple to classify Intrepid's tensor contractions by number of
 indices contracted away and output dimensionality.
@@ -109,16 +113,16 @@ contraction kernel suffixes are summarized in
 Table~\ref{tab:IntrepidNamingConvention}. The nine tensor contractions in
 Intrepid are summarized in Table~\ref{tab:IntrepidContractionSummary}.
 
-Note that the tensor contraction kernels in Intrepid each actually performs many
-contractions; for instance, \texttt{ContractDataDataScalar}, which performs
-contractions of two input vectors to a single output scalar (dot product),
+It is also important to note that the tensor contraction kernels in Intrepid each actually perform many
+contractions. For instance, \texttt{ContractDataDataScalar}, which performs
+contractions of two input vectors to a single output scalar (commonly known as a dot product),
 actually calculates an array of dot products. That is, the inputs are both
 arrays of vectors, and the output is an array of scalars. This is represented
 in the code using a dummy index, which we call the \texttt{Cell} index.
 
 \section{ContractDataDataScalar}
 \texttt{ContractDataDataScalar} is the simplest tensor contraction in Intrepid.
-The kernel takes two arrays of vectors and outputs an array of scalars. A
+The kernel takes two arrays of one-dimensional tensors (vectors) and outputs an array of scalars. A
 snippet showing the simple serial implementation of
 \texttt{ContractDataDataScalar} can be seen in
 Figure~\ref{lst:ContractDataDataScalarSerial}.
@@ -138,7 +142,7 @@ Figure~\ref{lst:ContractDataDataScalarSerial}.
 As shown in 
 Figure~\ref{lst:ContractDataDataScalarSerial}, this kernel contracts away the
 \texttt{Quadrature Points} dimension, leaving only the \texttt{Cell} dimension.
-It can also be thought of as an array of dot products.
+It can also be thought of as performing an array of dot products.
 
 \section{ContractDataDataVector}
 \texttt{ContractDataDataVector} takes two arrays of two-dimensional tensors
@@ -160,7 +164,8 @@ It can also be thought of as an array of dot products.
 As shown in Figure~\ref{lst:ContractDataDataVectorSerial},
 \texttt{ContractDataDataVector} is very similar to
 \texttt{ContractDataDataScalar}, except it contracts two indices instead of
-one.
+one. Again, only the \texttt{Cell} dimension is left, so we can think of this as a
+sort of two-dimensional dot product.
 
 \section{ContractDataDataTensor}\label{section:ContractDataDataTensor}
 \texttt{ContractDataDataTensor} takes two arrays of three-dimensional tensors
@@ -186,7 +191,7 @@ and computes an array of their inner products.
 As shown in Figure~\ref{lst:ContractDataDataTensorSerial},
 \texttt{ContractDataDataTensor} is very similar to\\
 \texttt{ContractDataDataVector} and \texttt{ContractDataDataScalar}, but has
-three contraction indices.
+three contraction indices instead of the one or two of the previous cases.
 
 \section{ContractDataFieldScalar}
 
@@ -209,7 +214,7 @@ vectors and contracts away one index.
 
 As shown in Figure~\ref{lst:ContractDataFieldScalarSerial},
 \texttt{ContractDataFieldScalar} has two non-contraction indices, the
-\texttt{Left Basis Function} index and the dummy \texttt{Cell} index. The
+\texttt{Left Basis Function} index (\texttt{lbf}) and the dummy \texttt{Cell} index. The
 output for this contraction is therefore an array of vectors instead of an array
 of scalars.
 
@@ -250,7 +255,8 @@ an array of vectors.
         for (int qp = 0; qp < quadraturepoints; ++qp) {
           for (int t1 = 0; t1 < iVec1; ++t1) {
             for (int t2 = 0; t2 < iVec2; ++t2) {
-              output[c][l] += left[c][l][qp][t1][t2] * right[c][qp][t1][t2];
+              output[c][l] += left[c][l][qp][t1][t2] 
+                              * right[c][qp][t1][t2];
             }
           }
         }
@@ -266,8 +272,9 @@ As shown in Figure~\ref{lst:ContractDataFieldTensorSerial},
 but has three contraction indices. 
 
 \section{ContractFieldFieldScalar}
-\texttt{ContractFieldFieldScalar} takes in two arrays of matrices and performs
-matrix multiplication on each element, yielding an output array of matrices.
+\texttt{ContractFieldFieldScalar} takes in two arrays of matrices and contracts
+away one index to produce an array of matrices. This effectively performs classical 
+matrix multiplication on each pair of input matrices.
 
 \begin{figure}[ht]
     \begin{lstlisting}
@@ -301,7 +308,8 @@ well as the left and right basis function indices.
         for (int r = 0; r < rbf; ++r) {
           for (int qp = 0; qp < quadraturepoints; ++qp) {
             for (int t = 0; t < iVec; ++t) {
-              output[c][l][r] += left[c][l][qp][t] * right[c][r][qp][t];
+              output[c][l][r] += left[c][l][qp][t] 
+                                 * right[c][r][qp][t];
             }
           }
         }
@@ -317,7 +325,8 @@ As shown in Figure~\ref{lst:ContractFieldFieldVectorSerial},
 \texttt{ContractFieldFieldScalar}, but with two contraction indices.
 
 \section{ContractFieldFieldTensor}
-\texttt{ContractFieldFieldTensor} is the most complex of the tensor contraction
+\texttt{ContractFieldFieldTensor} is the most complex (in terms of number of 
+input indices) of the tensor contraction
 kernels in Intrepid. This kernel takes two four-dimensional tensors and
 and contracts away three indices, keeping the \texttt{Cell} dummy dimension as
 well as the left and right basis function indices.
@@ -330,8 +339,8 @@ well as the left and right basis function indices.
           for (int qp = 0; qp < quadraturepoints; ++qp) {
             for (int t1 = 0; t1 < iVec1; ++t1) {
               for (int t2 = 0; t2 < iVec2; ++t2) {
-                  output[c][l][r] += left[c][l][r][qp][t1][t2] *
-                  right[c][l][r][qp][t1][t2];
+                  output[c][l][r] += left[c][l][r][qp][t1][t2] 
+                                     * right[c][l][r][qp][t1][t2];
               }
             }
           }
