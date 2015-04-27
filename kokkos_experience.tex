@@ -245,68 +245,42 @@ especially when changing the layout of the data between LayoutLeft and
 LayoutRight because no code changes need to occur in the functor.
 
 \section{Personal Experience and Thoughts}
-A task of the project was to document our experiences and thoughts about Kokkos,
-including any issues that we have run into. Using new tools and learning new
-syntax always has its tough periods, and getting used to Kokkos definitely had
-some periods where we had no idea why a program was not compile or giving an
-incorrect answer (especially in the beginning). But, after the initial learning
-curve everything seemed to flow pretty well and make sense. 
 
-Our team has never actually been responsible for installing Kokkos on our
-machine, instead our liaison, Dr. Carter Edwards, did that for us. We are unable
-to talk about the difficulties of downloading and installing the Kokkos library
-on our machine, but we did have lots of trouble trying to compile and linking
-against Kokkos originally. This was due to the fact that the same flags need to
-be used when installing and compiling and linking against Kokkos. However, since
-we did not install Kokkos ourselves and the documentation showing how to compile
-and link against Kokkos used different flags than what were used during our
-installation, we struggled for a while. Already this shows how Kokkos'
-documentation is not as developed as one would like, which we will bring up
-later, but it is understandable since Kokkos is new. 
+Part of our project's goal was to document our experiences using Kokkos,
+including any issues we run into.  As with any new tool or language, we
+initially had some trouble getting used to Kokkos.  However, most of our initial
+issues disappeared once we gained more experience with Kokkos.
 
-Another obstacle that slowed us down when first using, is Kokkos' use of magic
-words. For example, Kokkos requires the programmer to typedef Kokkos::Cuda or
-Kokkos::OpenMP to device\_type, and it must be device\_type, not some other
-name. Although the programmer can easily fix this, if the programmer is unaware
-of this requirement it can cause a lot of hassle for a while. Every team member
-ran into this at one time or another, but after a while we got used to it. When
-following examples we learned to use the same names for the typedefs to make
-sure that we did not run into another bug with the same nature. Once again
-documentation would have helped in this situation, but there is not much
-documentation, all we have are examples. On the bright side however, since we
-were able to write all of our programs by simply following a few examples we
-were able to see some of Kokkos' intuitiveness. Overall we really enjoy Kokkos'
-philosophy and structure, which as mentioned before, is almost identical to
-Intel's Thread Building Blocks (TBB). If you are familiar with TBB then learning
-Kokkos is almost as simple as learning the syntax because they are in the same
-paradigm. 
+Because our liaison, Dr. Carter Edwards, installed Kokkos on our machine, we are
+unable provide feedback regarding the process of downloading and installing
+Kokkos.  We did, however, encounter some trouble in compiling and linking
+against Kokkos. Our difficulties were mostly a consequence of insufficient or
+outdated documentation of the compiler and linker flags Kokkos requires.  The
+lack of documentation due to Kokkos' newness was a recurring problem for the
+team.
 
-As previously mentioned, Kokkos has very little documentation. For any emerging
-technology it is understandable that the creators choose to focus on
-functionality instead of documentation, but the documentation needs to catch up
-at some point. The examples were very helpful in getting us to our end goal of
-working code, but examples are not as helpful in understanding what exactly is
-happening, the meaning behind some portions of code, or why certain code is
-necessary. Documentation would have also been helpful in seeing the default
-values for functions and Views, as well as the other arguments that could have
-been passed instead. There were many times we tried to use Google to find
-information about Kokkos, but many times the information would point to
-uncommented pieces of code, which is not always helpful in determining what is
-going on. Overall we believe the documentation for Kokkos needs to improve in
-order for new users to get past the initial learning curve and spread the word
-about Kokkos. 
+Another obstacle we found was Kokkos' use of ``magic words''.  For example,
+Kokkos requires the programmer to typedef Kokkos::Cuda or Kokkos::OpenMP to
+device\_type; any other name would cause an error.  Though this is a simple line
+to add, it is not an obvious requirement, and initially caused use some
+confusion.  As with the compiler flags, formal documentation would have helped
+in this situation; instead, we relied almost exclusively on example programs.
+In Kokkos' favor, however, that we were able to write all of our programs by
+following a few examples shows Kokkos' intuitiveness.  Overall, found Kokkos'
+basic philosophy and structure to be elegant and well-designed.
 
-As a whole, our team's experience with Kokkos has been positive and see that it
-offers a great alternative to other solutions that allow multithreading on
-multiple architectures. A quick overview of the benefits of using Kokkos are:
-Kokkos can create multithreaded code on the CPU, GPU, and XeonPhi, Views can
-easily change the layout of the data, functors seem to keep the code cleaner and
-more readable than Cuda's kernels, and the fact that Kokkos is a C++ library and
-not a a new language adds simplicity. Some of the downsides and changes that we
-believe would improve Kokkos include Views having more layouts than LayoutRight
-and LayoutLeft, the use of magic words (or lack of using the right magic words)
-can create bugs that are hard to find, the example code should include comments
-to describe what is happening, and finally the documentation needs to improve.
-However, extended use of Kokkos will solve most of these problems except for
-Views being limited to two layout types, which is why our team had an overall
-good experience with Kokkos.
+The main difficulties the team encountered with Kokkos was its lack of
+documentation.  While expected in a young project, poor documentation made using
+Kokkos much more difficult.  We expect this to improve in the future, making
+Kokkos significantly more attractive to users.
+
+As a whole, our team's experience with Kokkos has been positive.  It offers a
+powerful, architecture-independent alternative to other multithreading
+solutions.  Kokkos code is much easier to port between the CPU, GPU, and Xeon
+Phi and Kokkos Views are powerful abstractions that allow a programmer to easily
+change the layout of the data.  Kokkos functors are cleaner and more readable
+than Cuda kernels, and the fact that Kokkos is a C++ library and not a new
+language adds simplicity.  Changes we would like to see in Kokkos include View
+layout options other than LayoutRight and LayoutLeft and the use of fewer
+``magic words''.  Kokkos would also greatly benefit from more documentation as
+well as better commenting in the example code.
