@@ -7,82 +7,73 @@
 %some graphical results
 %analysis of the results and differences
 %conclusion that they are very similar performing
-A feature that many programmers consider when deciding what the best solution is
-to solve their problem, is performance. Since Kokkos uses Cuda and OpenMP as a
-backend we thought that it was important to do some testing to ensure that
-Kokkos performs as well as these two solutions. If Kokkos's performance was
-worse then Cuda's or OpenMP's then programmers would use these other solutions
-instead. The good news for Kokkos is that in our testing it performs almost
-identically to Cuda and OpenMP. We did not spend an extensive amount of time
-confirming our results due to project priorities, but after a few pieces of supporting data we assumed that
-the rest of the tests would give similar results because there is no information or evidence
-that should give us reason to believe this trend will change. The rest of this
-section will describe our strategy for testing performance of Kokkos versus Cuda
-and Kokkos versus OpenMP, present graphs showing the differences observed, and
-analyze the graphs.
 
-The general method that was used to create performance data for Kokkos, Cuda,
-and OpenMP was to write algorithmically equivalent code for all three, make sure
-that the layout of the data is the same, then time the runtime of each (one
-after another). This process is pretty simple, but there is always noise in
-timing. That is why we repeated the same exact calculation five times and 
-then use the average time. A couple things that should be noted are we are
-unsure how Kokkos does a reduction in the team\_reduce() function, meaning we
-could not write a Cuda reduction that we knew was algorithm equivalent, and we
-can not be sure that the compilers do the same optimizations. Although
-we could have asked Dr. Carter Edwards (our liaison and one of the creators of 
-Kokkos), the project's priorities had changed and it was decided to not pursue
-this further. Regarding the second note, we tried to manually do some code
-optimizations that compilers can handle in order to make sure the amount of work
-each algorithm was the same (which is expected). Of course if one compiler has
-more advanced optimization techniques that is a benefit that should not be
-overlooked, but the goal of this testing was not to test performance against
-ease of coding, but rather the overall performance differences of Kokkos to 
-Cuda and Kokkos to OpenMP. 
+Since Kokkos uses Cuda and OpenMP as a backend to achieve faster performance, we
+chose to do some testing to confirm that Kokkos performs as well as these two
+solutions. If Kokkos performed worse then Cuda or OpenMP, then programmers might
+prefer these other solutions instead.  Fortunately, we found that Kokkos matches
+the performance of Cuda and OpenMP in almost all cases.  The rest of this
+section will describe our strategy for testing the performance of Kokkos
+compared to Cuda and OpenMP, present graphs showing the differences observed,
+and analyze the graphs.
 
-Now we will look at some of the performance differences and similarities of
-Kokkos, Cuda, and OpenMP. Look at Figure~\ref{fig:ContractDataDataScalar Kokkos performance comparison} that shows the raw times of Kokkos
-Cuda, Cuda, Kokkos OpenMP, and OpenMP for ContractDataDataScalar. \\
+In order to compare Kokkos, Cuda, and OpenMP, we wrote algorithmically
+equivalent code using all three paradigms (using the same data layout and memory
+access pattern) and recorded the runtime of each version.  To reduce noise in
+the timing data, we repeated the same calculations five times and used the
+average time.
+
+Note that because we were unsure how Kokkos implements the team\_reduce()
+function, we could not write a matching Cuda reduction.  Based on our project
+priorities, we chose not to pursue this further.
+
+These graphs present some of the performance differences and similarities of
+Kokkos, Cuda, and OpenMP. Figure~\ref{fig:ContractDataDataScalar Kokkos
+performance comparison} shows the raw times of Kokkos Cuda, Cuda, Kokkos OpenMP,
+and OpenMP for ContractDataDataScalar.
+
 \begin{figure}[!ht]
 {\includegraphics[scale=.4]{CDDS_RawTimes_2d_largestSize_Comparison.pdf}}
-\caption[ContractDataDataScalar Kokkos performance comparison]{This graph plots the performance of Kokkos Cuda, Cuda, Kokkos OpenMP,
-and OpenMP for ContractDataDataScalar with a memory size of 1 GB. 
-The y-axis is time in
-seconds, so closer to 0 is better. The x-axis plots different contraction sizes
-in order to compare multiple points.}
+\caption[ContractDataDataScalar Kokkos performance comparison]{
+    Performance of Kokkos Cuda, Cuda, Kokkos OpenMP,
+and OpenMP for ContractDataDataScalar with a memory size of 1 GB.}
 \label{fig:ContractDataDataScalar Kokkos performance comparison}
-\end{figure} \\
-Notice how in this graph Kokkos OpenMP and OpenMP are almost perfectly
-overlapping. We are not quite sure why they are not perfectly
-overlapping, but it appears that it is not random noise because it is pretty
-consistent in this graph. However, the difference is so small it seems
-insignificant. 
+\end{figure}
 
-KokkosCuda versus Cuda, on the other hand, has some big differences. They are
-identical for the smaller problems but diverge a significant amount for bigger
-problems. This trend exists because Kokkos is launching a different amount of blocks than the number of blocks Cuda launches 
-(Kokkos launches fewer blocks, with the intention of reusing them).
-We believe the reason this doesn't effect the smaller problem sizes is because
-the number of blocks that needs to be launched is smaller than the bigger problem sizes, so
-the upper limit of number of blocks launched is not reached, but clearly is in the bigger problem sizes. 
+In this graph, the y-axis is time in seconds, so closer to zero is better. The
+x-axis plots different contraction sizes.  Here, Kokkos OpenMP and OpenMP are
+almost perfectly overlapping. We are not quite sure why they are not perfectly
+overlapping, but it appears too consistent to be random noise. However, the
+difference is small enough as to be fairly insignificant. 
 
-Now look at Figure~\ref{fig:cffscomparison} for ContractFieldFieldScalar that includes the slicing technique (which uses shared memory)
-for both Kokkos Cuda and Cuda and it includes the normal flat parallel algorithm for Kokkos Cuda and Cuda. \\
+Kokkos Cuda, however, shows major differences compared to Cuda. The two perform
+identically for the smaller problems but diverge by a significant amount for
+bigger problems. This trend exists because Kokkos launches a different number of
+blocks compared Cuda; Kokkos launches fewer blocks, with the intention of
+reusing them.  We believe this doesn't affect small problem sizes because such
+problems require fewer blocks than the large problem sizes, so both Kokkos and
+Cuda launch enough blocks.  However, there is clearly a difference in the bigger
+problem sizes. 
+
+Figure~\ref{fig:cffscomparison} shows ContractFieldFieldScalar with the slicing
+technique (which uses shared memory) for both Kokkos Cuda and Cuda.  It also
+includes the flat parallel algorithm in both Kokkos Cuda and Cuda.
+
 \begin{figure}[!ht]
 {\includegraphics[scale=.4]{CFFS_RawTimes_2d_largest_Comparison.pdf}}
-\caption[ContractFieldFieldScalar Kokkos performance comparison]{This graph shows performance differences (or similarities in our case)
-of the nested parallelism approach slicing.}
+\caption[ContractFieldFieldScalar Kokkos performance comparison]{
+    Performance of the ``slicing'' nested parallelism approach.}
 \label{fig:cffscomparison}
-\end{figure} \\
-In Figure~\ref{fig:cffscomparison}, it is clear that the Cuda slicing performance is almost identical
-to the Kokkos slicing performance. This is important to show that both Kokkos's
-and Cuda's use of shared memory results in the same performance. 
+\end{figure}
 
-Overall, after seeing a handful of graphs that show Kokkos performs almost
-identically to Cuda and to OpenMP, we accepted that Kokkos is not adding any
-unneeded overhead. As stated before, there may be slight differences due to
-compiler optimizations, but Kokkos seems to perform identically to the other
-multithreading solutions.
+In Figure~\ref{fig:cffscomparison}, the Cuda slicing performance is almost
+identical to the Kokkos slicing performance. This shows that Kokkos's use of
+shared memory matches that of Cuda.
+
+Overall, most of our graphs show that Kokkos performs almost identically to Cuda
+and to OpenMP.  We therefore accepted that Kokkos is not adding any major
+overhead. There may be slight differences due to optimization choices, but
+Kokkos performs similarly to the other multithreading solutions.
 
 \section{Code Snippets}
 %Amount of work the programmer has to do is important
