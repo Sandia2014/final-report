@@ -41,8 +41,8 @@ ease of coding, but rather the overall performance differences of Kokkos to
 Cuda and Kokkos to OpenMP. 
 
 Now we will look at some of the performance differences and similarities of
-Kokkos, Cuda, and OpenMP. Here is a graph that shows the raw times of Kokkos
-Cuda, Cuda, Kokkos OpenMP, and OpenMP for ContractDataDataScalar: \\
+Kokkos, Cuda, and OpenMP. Look at Figure~\ref{fig:ContractDataDataScalar Kokkos performance comparison} that shows the raw times of Kokkos
+Cuda, Cuda, Kokkos OpenMP, and OpenMP for ContractDataDataScalar. \\
 \begin{figure}[!ht]
 {\includegraphics[scale=.4]{CDDS_RawTimes_2d_largestSize_Comparison.pdf}}
 \caption[ContractDataDataScalar Kokkos performance comparison]{This graph plots the performance of Kokkos Cuda, Cuda, Kokkos OpenMP,
@@ -53,7 +53,7 @@ in order to compare multiple points.}
 \label{fig:ContractDataDataScalar Kokkos performance comparison}
 \end{figure} \\
 Notice how in this graph Kokkos OpenMP and OpenMP are almost perfectly
-overlapping with Kokkos OpenMP. We are not quite sure why they are not perfectly
+overlapping. We are not quite sure why they are not perfectly
 overlapping, but it appears that it is not random noise because it is pretty
 consistent in this graph. However, the difference is so small it seems
 insignificant. 
@@ -66,7 +66,7 @@ We believe the reason this doesn't effect the smaller problem sizes is because
 the number of blocks that needs to be launched is smaller than the bigger problem sizes, so
 the upper limit of number of blocks launched is not reached, but clearly is in the bigger problem sizes. 
 
-Now here is a graph for ContractFieldFieldScalar that includes the slicing technique (which uses shared memory)
+Now look at Figure~\ref{fig:cffscomparison} for ContractFieldFieldScalar that includes the slicing technique (which uses shared memory)
 for both Kokkos Cuda and Cuda and it includes the normal flat parallel algorithm for Kokkos Cuda and Cuda. \\
 \begin{figure}[!ht]
 {\includegraphics[scale=.4]{CFFS_RawTimes_2d_largest_Comparison.pdf}}
@@ -74,7 +74,7 @@ for both Kokkos Cuda and Cuda and it includes the normal flat parallel algorithm
 of the nested parallelism approach slicing.}
 \label{fig:cffscomparison}
 \end{figure} \\
-In this graph it is clear that the Cuda slicing performance is almost identical
+In Figure~\ref{fig:cffscomparison}, it is clear that the Cuda slicing performance is almost identical
 to the Kokkos slicing performance. This is important to show that both Kokkos's
 and Cuda's use of shared memory results in the same performance. 
 
@@ -84,7 +84,7 @@ unneeded overhead. As stated before, there may be slight differences due to
 compiler optimizations, but Kokkos seems to perform identically to the other
 multithreading solutions.
 
-\section{Snippets}
+\section{Code Snippets}
 %Amount of work the programmer has to do is important
 %control and complexity of code is important
 %Much more complex than OpenMP, but follows a different paradigm
@@ -93,13 +93,13 @@ multithreading solutions.
 Another major factor that plays into whether or not a programmer uses a certain
 language, feature, library, etcetera, is code complexity and ease of coding.
 Although this can be subjective, there are a couple differences between the
-language we would like to point out, especially regarding amount of code
+languages we would like to point out, especially regarding amount of code
 required compared to Cuda or OpenMP (although comparing to OpenMP may be unfair)
 and intuitiveness of the code (or readability). 
 
 Regarding the amount of code required, comparing Kokkos to OpenMP does not seem
 fair. Comparing OpenMP to almost anything seems unfair, because OpenMP requires
-very little code and most of the work is done for you. Although OpenMP only
+very little code and most of the work is done for you. Although, OpenMP only
 works on the CPU which is why it does not require the extra code that Kokkos
 requires. In general, OpenMP cannot be compared to Kokkos. If the programmer
 knows the code only needs to be multithreaded on the CPU and will never need
@@ -113,7 +113,7 @@ start by showing the data setup, because the data needs to get onto the GPU
 somehow, then we will move to compare and contrast the Cuda kernel and the Kokkos
 functor. \\
 \\
-Here is code that shows the setup of the data on the GPU for Cuda: \\
+Look at Figure~\ref{lst:ContractFieldFieldScalar Cuda Data Setup} that shows the setup of the data on the GPU for Cuda. \\
 \begin{figure}[!htb]
 	\begin{lstlisting}
 float * dev_leftDataArray;
@@ -133,7 +133,7 @@ There are essentially three steps in the process: declaring a pointer to the
 data on the CPU, creating an array with the correct size on the GPU, then
 copying the data over to the GPU from wherever the data is currently kept on the
 CPU. This process is pretty simple and self-explanatory. Now let us compare that
-to Kokkos: \\
+to Kokkos code by looking at Figure~\ref{lst:ContractFieldFieldScalar Kokkos Cuda Data Setup} \\
 \begin{figure}[!htb]
 	\begin{lstlisting}
 typedef Kokkos::Cuda	DeviceType;
@@ -258,9 +258,10 @@ Although there is some more code for the Kokkos functor (the code required to
 declare the data members and the constructor), the Kokkos code looks a lot less
 cluttered. The Kokkos functor does not need to deal with figuring out the
 thread's ID, because it is an integer given as input, while the Cuda kernel
-needs to use blockId.x, blockDim.x, etc. Also indexing into the view is easier,
+needs to use blockId.x, blockDim.x, etc. Also indexing into the View is easier,
 especially when changing the layout of the data from LayoutLeft to LayoutRight
 (or vice versa) because no code changes need to occur in the functor.
+
 
 
 \section{Personal Experience and Thoughts}
@@ -270,9 +271,9 @@ especially when changing the layout of the data from LayoutLeft to LayoutRight
 % Following examples we can figure out what to do by copying syntax
 % No documentation when we wanted to figure out what exactly was happening
 % 
-A task of the project was to document our experiences and thoughts about Kokkos, including any issues that we have run into. Using new tools and learning new syntax always has its tough periods, and getting used to Kokkos definitely had some periods where we had no idea why a program was not compile or giving an incorrect answer (especially in the beginning), but after the initial learning curve everything seemed to flow pretty well and make sense. 
+A task of the project was to document our experiences and thoughts about Kokkos, including any issues that we have run into. Using new tools and learning new syntax always has its tough periods, and getting used to Kokkos definitely had some periods where we had no idea why a program was not compile or giving an incorrect answer (especially in the beginning). But, after the initial learning curve everything seemed to flow pretty well and make sense. 
 
-Our team has never actually been responsible for installing Kokkos on our machine, instead our liaison, Dr. Carter Edwards, did that for us, so we are unable to talk about the difficulties of downloading and installing the Kokkos library on our machine, but we did have lots of trouble trying to compile and linking against Kokkos originally. This was due to the fact that the same flags need to be used when installing and compiling and linking against Kokkos. However, since we did not install Kokkos ourselves and the documentation showing how to compile and link against Kokkos used different flags than what were used during our installation, we struggled for a while. Already this shows how Kokkos' documentation is not as developed as one would like, which we will bring up later, but it is understandable since Kokkos is new. 
+Our team has never actually been responsible for installing Kokkos on our machine, instead our liaison, Dr. Carter Edwards, did that for us. We are unable to talk about the difficulties of downloading and installing the Kokkos library on our machine, but we did have lots of trouble trying to compile and linking against Kokkos originally. This was due to the fact that the same flags need to be used when installing and compiling and linking against Kokkos. However, since we did not install Kokkos ourselves and the documentation showing how to compile and link against Kokkos used different flags than what were used during our installation, we struggled for a while. Already this shows how Kokkos' documentation is not as developed as one would like, which we will bring up later, but it is understandable since Kokkos is new. 
 
 Another obstacle that slowed us down when first using, is Kokkos' use of magic
 words. For example, Kokkos requires the programmer to typedef Kokkos::Cuda or
@@ -283,7 +284,7 @@ ran into this at one time or another, but after a while we got used to it. When
 following examples we learned to use the same names for the typedefs to make
 sure that we did not run into another bug with the same nature. Once again
 documentation would have helped in this situation, but there is not much
-documentation all we have are examples. On the bright side however, since we
+documentation, all we have are examples. On the bright side however, since we
 were able to write all of our programs by simply following a few examples we
 were able to see some of Kokkos' intuitiveness. Overall we really enjoy Kokkos'
 philosophy and structure, which as mentioned before, is almost identical to
@@ -308,7 +309,7 @@ about Kokkos.
 
 As a whole, our team's experience with Kokkos has been positive and see that it
 offers a great alternative to other solutions that allow multithreading on
-multiple architectures. A quick overview of the benefits of using Kokkos:
+multiple architectures. A quick overview of the benefits of using Kokkos are:
 Kokkos can create multithreaded code on the CPU, GPU, and XeonPhi, Views can
 easily change the layout of the data, functors seem to keep the code cleaner
 and more readable than Cuda's kernels, and the fact that Kokkos is a C++
