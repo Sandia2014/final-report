@@ -93,10 +93,11 @@ CPU, allocating an array with the correct size on the GPU, then copying the data
 over to the GPU from CPU (host) memory. This process is relatively simple and
 self-explanatory. 
 Equivalent Kokkos code is shown in Figure~\ref{lst:ContractFieldFieldScalar
-Kokkos Cuda Data Setup}
+Kokkos Cuda Data Setup}. Note that in a normal case, the data would already reside in the device View. The process in lines 12 - 25 is not necessary if the data is already on the device.
 
 \begin{figure}[!htb]
 	\begin{lstlisting}
+float * leftDataArray = (...)	// Not shown populating data array
 float * dev_leftDataArray;
 
 cudaMalloc((void **) &dev_leftDataArray, 
@@ -133,11 +134,13 @@ for (int cell = 0; cell < numContractions; ++cell) {
 	for (int lbf = 0; lbf < numLeftFields; ++lbf) {
 		for (int qp = 0; qp < numLeftFields; ++qp) {
 			contractionData_Left(cell, lbf, qp) = 
-				contractionDataLeft[cell*numLeftFields*
+				leftArray[cell*numLeftFields*
 				numPoints + lbf*numLeftFields + qp];
 		}
 	}
 }
+
+Kokkos::deep_copy(dev_ContractData_Left, contractionData_Left);
 	\end{lstlisting}
 \caption{Code from Kokkos Cuda \texttt{ContractFieldFieldScalar}
 \label{lst:ContractFieldFieldScalar Kokkos Cuda Data Setup}}
