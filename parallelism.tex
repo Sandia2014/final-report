@@ -436,7 +436,6 @@ Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase} to the functor's
 operator() function. \\
 \begin{figure}[!ht]
     \begin{lstlisting}
-// Expects the Views to be LayoutRight so the memory is coalesced
 // The if case is where the special reduction case is handled
 if (numPoints <= 16) {	
 	int myID = thread.league_rank()*(threadsPerTeam/numPoints)+thread.team_rank()/numPoints;
