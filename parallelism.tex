@@ -511,7 +511,12 @@ small contraction sizes.
 
 % Alex
 \section{Slicing} \label{slicing}
-Another general method we used for these contractions was slicing. The first
+So far, we've introduced flat methods, which feature no interaction between threads, and reduction
+methods, which involve communication between threads. Now, we'll move on to two methods
+featuring even more interaction between threads. These last methods utilize shared memory, 
+which provides a space for threads to store information and share it with other threads. 
+
+The first of these methods is a technique we call slicing. The first
 step of this method is to load one full contraction from the left input tensor into
 shared memory. Then, we simultaneously computed every output element that was
 dependent on that contraction as input. The clearest way to explain the
@@ -520,21 +525,18 @@ algorithm is by example. Consider one of the matrix multiplications in
 
 \begin{figure}
     \centering
-    \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic}
-    \caption{Demonstration of memory accesses for a slicing implementation of ContractFieldFieldScalar}
-\label{fig:Slicing}
+    \label{fig:Slicing}
 \end{figure}
 
     In Figure~\ref{fig:Slicing}, on the left, we have the first of the two input matrices, whose first row's
 elements are labeled $A-E$. On the right we have the second of the two inputs.
 For the sake of simplicity, assume that we have one block of five threads which
 are labeled by color. Each of the threads reads in one of the elements on the
-right and copies it into shared memory. In cases where the number of elements
+left and copies it into shared memory. In cases where the number of elements
 per contraction (row on the left) is unequal to the number of contractions
 (columns on the right), we set the number of threads per block equal to the
 number of contractions. This causes threads to either sit idle or loop multiple
-times when reading the elements on the left into shared memory, but this is
-clearly more efficient than forcing threads to compute more than one element.
+times when reading the elements on the left into shared memory.
 	
     After the values of the contraction have been read into shared memory, we
 have each thread compute the output element corresponding to one contraction.
@@ -545,81 +547,94 @@ progress, memory accesses will be coalesced within the block, since each thread
 reads the same element from shared memory then multiplies by an element that is
 adjacent to the other elements the rest of the block is reading at that time. 
 	
-    For every other block of threads, the approach is similar, if Figure~\ref{fig:Slicing}
+    For every other block of threads, the approach is similar. If Figure~\ref{fig:Slicing}
 represents the first block of the contraction, then the second block will be
 represented in Figure~\ref{fig:Slicing2}. 
 
-\begin{figure}[b]
+\begin{figure}[H]
     \centering
+    \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic}
+    \caption{Demonstration of memory accesses for the first team a slicing implementation of ContractFieldFieldScalar}
+
     \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic2}
-    \caption{Demonstration of memory accesses for the second block of a slicing implementation of ContractFieldFieldScalar}
+    \caption{Demonstration of memory accesses for the second team of a slicing implementation of ContractFieldFieldScalar}
 \label{fig:Slicing2}
 \end{figure}
 
-We see that for the FieldFieldScalar example, where our equation is given by
-$L_{C,\ell,P} \times R_{C, \mathcal{R}, P} = O_{C,\ell, \mathcal{R}}$, the
-number of blocks initialized by the algorithm will be equal $\ell \times C$,
-since there are $\ell$ blocks per matrix, and we have $C$ matrices.
-Additionally, there will be $\mathcal{R}$ threads per block. 
+We see that for the ContractFieldFieldScalar example, where our equation is given by
+$A_{c,l,p} \times B_{c, r, p} = O_{c,l, r}$, the
+number of blocks initialized by the algorithm will be equal $l \times c$,
+since there are $l$ blocks per matrix, and we have $c$ matrices.
+Additionally, there will be $r$ threads per block. 
 
-%TODO make this kokkos code?
-    Cuda code for executing the algorithm as described above is included in Figure~\ref{lst:ContractFieldFieldScalarSlice},
-although it has been simplified for clarity. 
+
+    Kokkos code for executing the algorithm as described above is included in Figure~\ref{lst:ContractFieldFieldScalarSlice}. 
 
 \begin{figure}[ht]
     \begin{lstlisting} [basicstyle=\tiny]
-     extern __shared__ float sliceStorage[];
-     const unsigned int col = threadIdx.x;
-     unsigned int currentBlock = blockIdx.x;
-     unsigned int numBlocks = numBasis*numCells;
-     
-     syncthreads();
-     const unsigned int cell = currentBlock / numBasis;
-     const unsigned int row = currentBlock - cell * numBasis;
+    int r = thread.team_rank();
+    int c = thread.league_rank() / numLeftFields;
+    int l = thread.league_rank() - c * numLeftFields; // (mod)
 
-     for (unsigned int p = threadIdx.x; p < contractionSize; p += blockDim.x) {
-        sliceStorage[p] = dev_contractionData_Left[cell*numBasis*contractionSize + row*contractionSize + p];
-     }
-     syncthreads();
+    // Load a slice into shared memory, each thread loads as many elements as it needs to.
+    Kokkos::View<float*, Kokkos::MemoryUnmanaged> shared_slice(thread.team_shmem(), numPoints);
+    for (int p = thread.team_rank(); p < numPoints; p += thread.team_size()) {
+      shared_slice(p) = leftView(c, l, p);
+    }
+    thread.team_barrier();
 
-     float sum = 0;
-     for (int p = 0; p < contractionSize; ++p) {
-       sum += sliceStorage[p] * dev_contractionData_Right[cell*numBasis*contractionSize +
-        p*numBasis + col];
-     }
+    // Do as much as you can using that slice -- The parallel for goes across all the rows if possible.
+    // This for loop is for the dot product within a row.
+    float sum = 0;
+    for (int p = 0; p < numPoints; ++p) {
+      sum += shared_slice(p) * rightView(c, p, r);
+    }
+    outputView(c, l, r) = sum;
 
-     dev_contractionResults[cell*numBasis*numBasis + row*numBasis + col] = sum;
- \end{lstlisting}
+   \end{lstlisting}
 \caption{Code from slicing algorithm on \texttt{ContractFieldFieldScalar}
 \label{lst:ContractFieldFieldScalarSlice}} 
 \end{figure}
 
-    The main advantage of this approach is that it is easily generalizable to
+    Taking a step back, another possible use of shared memory is to use tiles inspired
+    by cache friendly implementations of matrix multiplication. This approach will be discussed
+    in detail in the next section, but it bears mentioning now for contrast with the slicing approach. 
+    The main advantage of slicing when compared to a tile based approach is that it is easily generalizable to
 tensor contractions of higher dimensions. Unlike tiling (described in Section~\ref{sec:tiling}), which is significantly
 less intuitive in higher dimensions, it is easy to implement slicing in higher
 dimensions by loading a larger slice into shared memory. Because of its
-reliance on shared memory, there are many use cases in which we would expect
-slicing to perform poorly. 
+reliance on shared memory, we would expect it to perform poorly in situations where the memory
+needed to store slices is a limiting factor. One class of examples of this phenomenon are cases where the size of the contraction large relative to the number of basis functions. 
 
 Intuitively, slicing is reliant on large contraction
 sizes to produce speedup because in situations where the number of threads per
-block is low it is unable to saturate the GPU. While this problem can be
+block is low it is unable to saturate the GPU. In flat parallelism, we use one thread per
+element in the output matrix. Critically, these threads are
+not reliant one one another, so the GPU does not have to satisfy constraints to 
+give threads in the same team access to shared memory. In contrast, slicing does 
+place these types of requirements on the GPU, and when the size of a team is small (less than 100)
+the GPU suffers performance decreases that lead to slicing becoming less efficient. 
 remedied by increasing the number of contractions per block, it can introduce
-problems with shared memory. Since shared memory is limited by nature, slicing
-has to balance the amount of work per block with the amount of shared memory
-available to that block.
+problems with shared memory. Since shared memory is limited by nature (most NVIDIA GPUs offer only 16KB shared memory), slicing has to balance the amount of workwith the amount of shared memory
+available.
 	
-    In situations where the problem has an inherently large amount of reuse
-like \texttt{ContractFieldFieldScalar}, this problem can be remedied to some degree, but
-in contractions without this feature, like \texttt{ContractDataDataScalar}, it seems
+    In situations where the contraction has an inherently large amount of reuse
+like \texttt{ContractFieldFieldScalar}, this problem can be remedied to some degree by loading multiple slices into shared memory and reusing them multiple times. However, some 
+contractions , like \texttt{ContractDataDataScalar}, do not reuse any of the elements in the left input matrix to
+calculate multiple output elements. In these cases, it seems
 clear that slicing will not be an efficient algorithm. 
 	
 When we compare slicing approaches using one contraction per block to
-independent flat parallelism on promising problems, we get underwhelming
-results. 
+independent flat parallelism on ContractFieldFieldScalar, we get underwhelming
+results, as shown by Figure~\ref{fig:CFFSSlicingVSIndepentent}. 
 
-%TODO make this a figure and ref it above
-    \includegraphics[scale = .17]{slicingvsindependent}
+\begin{figure}[!ht] 
+    \centering
+    \includegraphics[scale = .15]{slicingvsindependent}
+    \caption{ContractFieldFieldScalar slicing speedup compared to independent parallelism}
+\label{fig:CFFSSlicingVSIndepentent}
+\end{figure}
+
 
 These results were generated by comparing independent algorithms to slicing on
 \texttt{ContractFieldFieldScalar} with $\ell = \mathcal{R} = 10$ and $P \in [8,1024]$. We see
@@ -631,15 +646,22 @@ is unable to fully saturate the GPU. The benefits of reuse in this corner are
 significant enough to out-compete flat parallelism. On the rest of the graph,
 however, the inability of slicing to saturate the GPU means that it is
 significantly slower that flat parallelism. Since $\ell = \mathcal{R} = 10$,
-the algorithm naturally only spawns 10 threads per block, which is not enough
-to produce good results. 
+the algorithm naturally only spawns 10 threads per block, which, as previously discussed, is not enough. 
 
 Fortunately, this can be counteracted to some degree by loading multiple slices 
 into shared memory simultaneously. This places a larger strain on shared memory, 
 but also presents additional opportunities for parallelism. 
-This technique has shown promising results on \texttt{ContractFieldFieldTensor}, as shown in Figure~(TODO) %TODO get this figure: 
+This technique has shown promising results on \texttt{ContractFieldFieldTensor}, as shown in Figure~\ref{fig:TwoSlicings}. 
 
-%TODO {send help - I don't understand the python graph making code}
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale = .12]{CFFTSlicingVSSerial}
+    \caption{Performance of slicing parallelism when compared to serial}
+
+    \includegraphics[scale = .12]{CFFTAdaptiveSlicingVSSerial}
+    \caption{Performance of Adaptive Slicing on the same problem, note the increased speedup}
+\label{fig:TwoSlicings}
+\end{figure}
 
 This shows that the adaptive slicing approach does have some process in these applications. These results were generated by loading two slices simultaneously in \texttt{ContractFieldFieldTensor} with $\ell = \mathcal{R} = 125$, $d_1 = d_2 = 4$, and $p=216$.
 
@@ -654,31 +676,27 @@ explicitly store the data we care about. Once again, we will explain this
 algorithm by example. Consider one of the matrix multiplications in
 \texttt{ContractFieldFieldScalar} as shown in Figure~\ref{fig:Tiling}. 
 
-%TODO replace this figure with the one from the poster
+
 \begin{figure}[ht]
     \centering
     \includegraphics[scale = .7]{ContractFieldFieldScalarGraphicTiling}
-    \caption{Demonstration of memory accesses for a tiling implementation of ContractFieldFieldScalar}
+    \caption{Demonstration of first round of memory accesses for a tiling implementation of ContractFieldFieldScalar}
+    
+    includegraphics[scale = .7]{ContractFieldFieldScalarGraphicTiling2}
+    \caption{Demonstration of second round of memory accesses for a tiling implementation of ContractFieldFieldScalar}
 \label{fig:Tiling}
 \end{figure}
 
-For the sake of simplicity we'll consider a block to be four threads, which
+For the sake of simplicity we'll consider a team to be four threads, which
 simplifies our computation since the matrix is four by four. On the left hand
-side, the block loads a four element tile into the shared memory of the
+side, the team loads a four element tile into the shared memory of the
 threads. Once these elements are loaded into memory, each thread can begin
 computation of their element in the output matrix. Each thread computes as much
 of their output element as they can using the elements in shared memory, then
-we load a new tile into shared memory and continue the process, as shown in Figure~\ref{fig:Tiling2}.
+we load a new tile into shared memory and continue the process, as shown in Figure~\ref{fig:Tiling}.
 We see that in this case we will have to load two tiles into shared memory
 before we have computed every output element in the first tile in its entirety. 
 
-%TODO replace this figure as well
-\begin{figure}[ht]
-    \centering
-    \includegraphics[scale = .7]{ContractFieldFieldScalarGraphicTiling2}
-    \caption{Demonstration of memory accesses for a tiling implementation of ContractFieldFieldScalar}
-\label{fig:Tiling2}
-\end{figure}
 
     Tiling can be viewed as a more specialized version of slicing, since they
 both use similar access patterns for shared memory. The difference between the
@@ -687,70 +705,68 @@ the distribution of a contractions operations over multiple loops of the
 routine. Because of these differences, tiling can routinely saturate the GPU in
 a way that pure slicing cannot, since the algorithm inherently limits the
 shared memory usage per block by reusing the same shared memory multiple times.
-Additionally, if we set the dimension of our tiles intelligently, we can
-reliably saturate the GPU with both blocks and threads, something that is very
+Additionally, if we set the dimension of our tiles intelligently, the algorithm
+saturates the GPU with both blocks and threads, something that is very
 difficult to do adaptively with pure slicing. 
 	
 %TODO this should probably be Kokkos, and not have the limitations
-    Excerpts from our Cuda implementation of tiling are included below. The
+    Excerpts from our Cuda implementation of tiling are included in Figure~\ref{lst:ContractFieldFieldScalarTiling}. The
 code assumes that \texttt{tileSize} (the horizontal and vertical dimensions of a tile)
 evenly divides both the contraction size and $\ell = \mathcal{R} =
 \text{numBasis}$.
 	
 \begin{figure}[H]
     \begin{lstlisting} [basicstyle=\tiny]
-  extern __shared__ float tileStorage[];
-  const unsigned int numbersPerTile = tileSize * tileSize;
-  const unsigned int numberOfHorizontalTiles = contractionSize / tileSize;
-  const unsigned int numberOfVerticalTiles = numBasis / tileSize;
+    
+    const unsigned int numBasis = numLeftFields;
 
-  const unsigned int numberOfTiles = numCells * numberOfVerticalTiles * numberOfVerticalTiles;
+    // We use -1, +1 to get the ceiling of numPoints/tile_size and numBasis/tile_size
+    const unsigned int numberOfPointTiles = numPoints / tile_size;
+    const unsigned int numberOfBasisTiles = numBasis / tile_size;
 
-  const unsigned int subRow = threadIdx.x / tileSize;
-  const unsigned int subCol = threadIdx.x  - subRow * tileSize;
+    const unsigned int numberOfTiles = numCells * numberOfBasisTiles * numberOfBasisTiles;
 
-  unsigned int resultTileIndex = blockIdx.x;
+    const unsigned int subRow = thread.team_rank() / tile_size;
+    const unsigned int subCol = thread.team_rank()  - subRow * tile_size; // (mod)
 
-  unsigned int resultSubmatrixIndex = resultTileIndex % (numberOfVerticalTiles * numberOfVerticalTiles);
-  unsigned int resultMatrix = resultTileIndex / (numberOfVerticalTiles * numberOfVerticalTiles);
+    unsigned int resultTileIndex = thread.league_rank();
 
-  // for tileNumber in 0...numberOfTilesPerSide
-  for (unsigned int tileNumber = 0; tileNumber < numberOfHorizontalTiles; ++tileNumber) {
-      
-      // calculate result tile indices
-      const unsigned int resultTileRow = resultSubmatrixIndex / numberOfHorizontalTiles;
-      const unsigned int resultTileCol = resultSubmatrixIndex  -
-        resultTileRow * numberOfHorizontalTiles;
+    // Create our tiles
+    Kokkos::View<float**, Kokkos::MemoryUnmanaged> LeftTileStorage(thread.team_shmem(), tile_size, tile_size);
+    Kokkos::View<float**, Kokkos::MemoryUnmanaged> RightTileStorage(thread.team_shmem(), tile_size, tile_size);
 
-      // calculate this threads actual output index
-      const unsigned int row = resultTileRow * tileSize + subRow;
-      const unsigned int col = resultTileCol * tileSize + subCol;
+    const unsigned int resultMatrix = resultTileIndex / (numberOfBasisTiles * numberOfBasisTiles);
+    const unsigned int resultSubmatrixIndex = resultTileIndex - (resultMatrix * numberOfBasisTiles * numberOfBasisTiles); // (mod)
 
-      // these are base indices into the shared memory
-      const unsigned int leftBaseIndex = subRow * tileSize;
-      const unsigned int rightBaseIndex = numbersPerTile + subCol;
+    // calculate result tile indices
+    const unsigned int resultTileRow = resultSubmatrixIndex / numberOfBasisTiles;
+    const unsigned int resultTileCol = resultSubmatrixIndex  - resultTileRow * numberOfBasisTiles;
 
-      const unsigned int resultIndex = row * numBasis + col;
+    // calculate this threads actual output index
+    const unsigned int row = resultTileRow * tile_size + subRow;
+    const unsigned int col = resultTileCol * tile_size + subCol;
+
+    float sum = 0;
+    // for tileNumber in 0...numberOfTilesPerSide
+    for (unsigned int tileNumber = 0;
+        tileNumber < numberOfPointTiles; ++tileNumber) {
 
       // load the left and right tiles into shared memory
-      syncthreads();
-      tileStorage[threadIdx.x] = dev_contractionData_Left[resultMatrix * numBasis * contractionSize
-        + row * contractionSize + tileNumber * tileSize + subCol];
-      tileStorage[threadIdx.x + blockDim.x] = dev_contractionData_Right[resultMatrix * numBasis * contractionSize
-        + (tileNumber * tileSize + subRow) * numBasis + col];
+      LeftTileStorage(subRow, subCol)  = leftView(resultMatrix, row, tileNumber * tile_size + subCol);
+      RightTileStorage(subRow, subCol) = rightView(resultMatrix, tileNumber * tile_size + subRow, col);
       
       // make sure everyone's finished loading their pieces of the tiles
-      syncthreads();
-      double sum = 0;
-      for (unsigned int dummy = 0; dummy < tileSize; ++dummy) {
-        sum +=
-          tileStorage[leftBaseIndex + dummy] *
-          tileStorage[rightBaseIndex + dummy * tileSize];
-      }
-      dev_contractionResults[resultIndex] += sum;
-    }
-
+      thread.team_barrier();
+      for (unsigned int dummy = 0; dummy < tile_size; ++dummy) {
+        sum += LeftTileStorage(subRow, dummy) *
+            RightTileStorage(dummy,subCol);
+        }
+        thread.team_barrier();
+   }
+   outputView(resultMatrix, row, col) = sum;
+   resultTileIndex += thread.league_size();
  \end{lstlisting}
+ \label{lst:ContractFieldFieldScalarTiling}
 \end{figure}
 
 
@@ -774,10 +790,10 @@ Consider the graph generated in Figure~\ref{fig:TilingPerformance} for \texttt{C
 
 \subsection{ContractFieldFieldTensor}
 
-We also created a tiling implementation of \texttt{ContractFieldFieldTensor}. Conceptually, it is much more difficult to envision how to approach tiling on multidimensional problems. \texttt{ContractiFieldFieldTensor}, which can be described by the equation $L_{C,\ell,P,d_1,d_2} \times R_{C, \mathcal{R}, P,d_1,d_2} = O_{C,\ell, \mathcal{R}}$, therefore presents an interesting problem for the tiling approach. 
+We also created a tiling implementation of \texttt{ContractFieldFieldTensor}. Conceptually, it is much more difficult to envision how to approach tiling on multidimensional problems. \texttt{ContractFieldFieldTensor}, which can be described by the equation $L_{C,\ell,P,d_1,d_2} \times R_{C, \mathcal{R}, P,d_1,d_2} = O_{C,\ell, \mathcal{R}}$, therefore presents an interesting problem for the tiling approach. 
 
 Unlike slicing, there seem to be multiple distinct ways of approaching the
-problem. One can ``unroll" the entire contraction to create a situation where
+problem. One can unroll the entire contraction to create a situation where
 the left and right matrices are rectangular, but can be covered by 2D tiles.
 Alternatively, algorithms could cover the left and right inputs using
 multidimentional tiles. While conceptually these two approaches seem distinct,
@@ -786,7 +802,7 @@ both the input and output matrices into shared memory and operating on them
 repeatedly. As long as we avoid suboptimal memory access patterns, it makes no
 difference whether we visualize the tiles as two dimensional or with even higher
 dimensions. For ease of understanding, we implemented
-\texttt{ContractFieldFieldTensor}'s tiling kernels with ``unrolled"
+\texttt{ContractFieldFieldTensor}'s tiling kernels with unrolled
 contractions. This essentially, reduces the kernel to a series of long dot
 products in our vision of the memory layout. 
 
@@ -795,14 +811,14 @@ Using the tiling method on \texttt{ContractFieldFieldTensor} we were able to gen
 \begin{figure}[H]
     \centering
 \includegraphics[scale = .2]{ContractFieldFieldTensor}
-\caption{Speedup of Tiling for ContractFieldFieldTensor over independent parallelism. This data was generated with $\ell = \mathcal{R} = 16$, $d_1 = d_2 = 4$, and $P$ varying from 16 to 128.}
+\caption{Speedup of Tiling for ContractFieldFieldTensor over independent parallelism. This data was generated with $\ell = \mathcal{R} = 16$, $d_1 = d_2 = 4$, and $P$ varying from 16 to 128. The tile size used was 16.}
 \label{fig:CFFTSpeedup}
 \end{figure}
 
 In these cases, the size of the contraction will often be larger than the number
 of basis functions by as much as an order of magnitude. This makes tiling
 significantly less efficient because the matrices are rectangular instead of
-square, as we previously discussed. In this case, the number of GPU blocks
+square, as we previously discussed. In this case, the number of GPU teams
 capable of working on a contraction using the tiling algorithm is given by
 $\frac{\text{number of basis functions}}{\text{size of a tile}}$. While tiling
 can still perform well in these use cases, as shown by
@@ -812,14 +828,14 @@ as well as on square matrices.
 \begin{figure}[H]
     \centering
 \includegraphics[scale = .2]{CFFTTiling1}
-\caption{Raw times for serial, independent, and tiling approaches to \texttt{ContractFieldFieldScalar}. This data was generated with $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This graph uses a relatively low memory size, which limits the number of cells}
+\caption{Speedup for serial, independent, and tiling approaches to \texttt{ContractFieldFieldScalar}. This data was generated with $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This graph uses a relatively low memory size, which limits the number of cells}
 \label{fig:multiDTiling1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
 \includegraphics[scale = .2]{CFFTTiling2}
-\caption{Raw times for serial, independent, and tiling approaches to \texttt{ContractFieldFieldScalar}. This data was generated with $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This data was collected while simulating a memory size an order of magnitude larger than the previous image, leading to a significantly higher cell count. }
+\caption{Speedup for serial, independent, and tiling approaches to \texttt{ContractFieldFieldScalar}. This data was generated with $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This data was collected while simulating a memory size an order of magnitude larger than the previous image, leading to a significantly higher cell count. }
 \label{fig:multiDTiling2}
 \end{figure}
 
@@ -895,7 +911,7 @@ Excerpts from our implementation of tiling for ContractFieldFieldTensor are incl
       _outputView(resultMatrix, row, col) = sum;
       
  \end{lstlisting}
- \caption{Something should be here} %TODO
+
 \label{lst:CFFTTiling}
 \end{figure}
  
