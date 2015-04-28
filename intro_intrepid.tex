@@ -3,7 +3,7 @@
 Intrepid is a C++ library developed as part of Sandia's Trilinos Project.
 Intrepid's main functionality is to perform algebraic operations over 
 multi-dimensional arrays. Tensor
-contractions are one class of tools implemented by Intrepid, widely used in
+contractions are one class of operations implemented by Intrepid, widely used in
 high-performance simulation software.
 
 One particular type of tensor contraction, two-dimensional matrix
@@ -19,16 +19,13 @@ multiplicative algebraic operations over tensors in which pairs of indices, one 
 the two input tensors, can be ``contracted'' together, reducing the dimensionality
 of the output tensor. 
 
-As an example, two matrices (two-dimensional tensors), could be contracted with no indices
-contracted away, yielding a four-dimensional outer product. If the size of one
-dimension on the left matrix matches the size of one dimension on the right
-matrix, that dimension can be contracted by summing the products of the left and
-right matrix entries for each element in the contraction index. This is
-standard matrix multiplication, a visual representation of which can be seen in
-Figure~\ref{fig:MatrixMultiplication}. If the two matrices are of identical
-size, then both indices can be contracted away in an inner product, each element
-in the left matrix multiplied pairwise with the corresponding element in the
-right matrix and summed to yield a scalar output.
+As an example, three different operations can be performed on two matrices (two-dimensional tensors):
+an outer product, a matrix multiplication, or an inner product. In an outer product,
+the two matrices are combined to form a four-dimensional tensor. In a matrix
+multiplication, two of the four resultant indices are contracted together, 
+resulting in a two-dimensional tensor, a visual representation of which can be seen in Figure~\ref{fig:MatrixMultiplication}. In an inner product, all of the resultant
+indices are contracted together, resulting in a scalar. In typical terminology, the last two
+are considered "contractions".
 
 \begin{figure}[h]
     \centering
@@ -39,7 +36,7 @@ right matrix and summed to yield a scalar output.
 \end{figure}
 
 
-In this section, we have discussed the three possiblities for two-dimensional
+In this section, we have discussed the three possibilities for two-dimensional
 tensor contractions. However, tensor contractions also generalize to tensors
 with higher dimensionality, such as three or four dimensional tensors. In 
 these higher dimensional tensors, there are more options for how many contraction 
@@ -108,7 +105,7 @@ For instance, in the \texttt{ContractDataDataScalar} kernel, the first suffix
 second suffix \texttt{Scalar} is used for kernels that contract away one
 dimension. Therefore, the Intrepid kernel \texttt{ContractDataDataScalar}
 produces scalar outputs and contracts away one dimension, and so by necessity
-the inputs for a single contraction must be vectors. All of the Intrepid tensor
+the inputs for a single contraction must be vectors (one-dimensional tensors). All of the Intrepid tensor
 contraction kernel suffixes are summarized in
 Table~\ref{tab:IntrepidNamingConvention}. The nine tensor contractions in
 Intrepid are summarized in Table~\ref{tab:IntrepidContractionSummary}.
@@ -123,7 +120,7 @@ in the code using a dummy index, which we call the \texttt{Cell} index.
 \section{ContractDataDataScalar}
 \texttt{ContractDataDataScalar} is the simplest tensor contraction in Intrepid.
 The kernel takes two arrays of one-dimensional tensors (vectors) and outputs an array of scalars. A
-snippet showing the simple serial implementation of
+snippet showing the simple (conceptual) serial implementation of
 \texttt{ContractDataDataScalar} can be seen in
 Figure~\ref{lst:ContractDataDataScalarSerial}.
 
@@ -327,7 +324,7 @@ As shown in Figure~\ref{lst:ContractFieldFieldVectorSerial},
 \section{ContractFieldFieldTensor}
 \texttt{ContractFieldFieldTensor} is the most complex (in terms of number of 
 input indices) of the tensor contraction
-kernels in Intrepid. This kernel takes two four-dimensional tensors and
+kernels in Intrepid. This kernel takes two arrays of four-dimensional tensors and
 and contracts away three indices, keeping the \texttt{Cell} dummy dimension as
 well as the left and right basis function indices.
 
@@ -354,5 +351,5 @@ well as the left and right basis function indices.
 
 As shown in Figure~\ref{lst:ContractFieldFieldTensorSerial},
 \texttt{ContractFieldFieldTensor} is similar to
-\texttt{ContractFieldFieldScalar}, but with two contraction indices.
+\texttt{ContractFieldFieldScalar}, but with three contraction indices.
 
