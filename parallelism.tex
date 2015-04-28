@@ -555,10 +555,11 @@ represented in Figure~\ref{fig:Slicing2}.
     \centering
     \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic}
     \caption{Demonstration of memory accesses for the first team a slicing implementation of ContractFieldFieldScalar}
+    \label{fig:Slicing}
 
     \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic2}
     \caption{Demonstration of memory accesses for the second team of a slicing implementation of ContractFieldFieldScalar}
-\label{fig:Slicing2}
+    \label{fig:Slicing2}
 \end{figure}
 
 We see that for the ContractFieldFieldScalar example, where our equation is given by
@@ -682,7 +683,7 @@ algorithm by example. Consider one of the matrix multiplications in
     \includegraphics[scale = .7]{ContractFieldFieldScalarGraphicTiling}
     \caption{Demonstration of first round of memory accesses for a tiling implementation of ContractFieldFieldScalar}
     
-    includegraphics[scale = .7]{ContractFieldFieldScalarGraphicTiling2}
+    \includegraphics[scale = .7]{ContractFieldFieldScalarGraphicTiling2}
     \caption{Demonstration of second round of memory accesses for a tiling implementation of ContractFieldFieldScalar}
 \label{fig:Tiling}
 \end{figure}
@@ -710,7 +711,7 @@ saturates the GPU with both blocks and threads, something that is very
 difficult to do adaptively with pure slicing. 
 	
 %TODO this should probably be Kokkos, and not have the limitations
-    Excerpts from our Cuda implementation of tiling are included in Figure~\ref{lst:ContractFieldFieldScalarTiling}. The
+    Excerpts from our CKokkos implementation of tiling are included in Figure~\ref{lst:ContractFieldFieldScalarTilingCode}. The
 code assumes that \texttt{tileSize} (the horizontal and vertical dimensions of a tile)
 evenly divides both the contraction size and $\ell = \mathcal{R} =
 \text{numBasis}$.
@@ -766,7 +767,8 @@ evenly divides both the contraction size and $\ell = \mathcal{R} =
    outputView(resultMatrix, row, col) = sum;
    resultTileIndex += thread.league_size();
  \end{lstlisting}
- \label{lst:ContractFieldFieldScalarTiling}
+ \caption{Kokkos implementation of tiling for ContractFieldFieldScalar}
+ \label{lst:ContractFieldFieldScalarTilingCode}
 \end{figure}
 
 
@@ -839,7 +841,7 @@ as well as on square matrices.
 \label{fig:multiDTiling2}
 \end{figure}
 
-Excerpts from our implementation of tiling for ContractFieldFieldTensor are included in Figure~\ref{lst:CFFTTiling}, which have been simplified using the assumption that $\ell=\mathcal{R}$ as well as the assumption that the size of each tile evenly divides every other dimension for clarity. 
+Excerpts from our implementation of tiling for ContractFieldFieldTensor are included in Figure~\ref{lst:CFFTTilingCode}, which have been simplified using the assumption that $\ell=\mathcal{R}$ as well as the assumption that the size of each tile evenly divides every other dimension for clarity. 
 
 \begin{figure}[H]
     \begin{lstlisting} [basicstyle=\tiny]
@@ -911,8 +913,8 @@ Excerpts from our implementation of tiling for ContractFieldFieldTensor are incl
       _outputView(resultMatrix, row, col) = sum;
       
  \end{lstlisting}
-
-\label{lst:CFFTTiling}
+\caption{Code for chokes implementation of tiling for ContractFieldFieldTensor}
+\label{lst:CFFTTilingCode}
 \end{figure}
  
  
