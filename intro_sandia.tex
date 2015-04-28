@@ -40,12 +40,12 @@ The task of this clinic project has been to rewrite several kernels included in
 libraries within Sandia's Trilinos Project. The Trilinos Project is a
 collection of open source libraries intended for use in large-scale scientific
 applications. Specifically, this clinic team aimed to rewrite some of these Trilinos kernels to be
-efficient and thread-scalable on manycore architectures.
+efficient and thread-scalable on manycore architectures such as GPUs.
 
 As well as presenting Sandia with a set of faster kernels, Sandia has also
 requested that we present a general approach to parallelizing code. Many of the
 mathematicians, engineers, and scientists at Sandia have little experience
-writing code for GPUs or large thread count CPUs such as Intel Xeon Phi. Over
+writing code for GPUs or large thread count coprocessors such as Intel's Xeon Phi. Over
 the course of our clinic project, we have uncovered a number of parallelization pitfalls 
 along with techniques that work well for achieving speedup. By recording our experiences, we hope to
 make it easier for Sandia's engineers to apply similar techniques to more of
@@ -63,17 +63,20 @@ Chapter~\ref{sec:IntroIntrepid} for more detail on Intrepid.
 
 Most traditional computer programs run on a Central Processing Unit (CPU). CPUs
 are characterized by relatively low thread counts. For reference, a modern personal computer
-usually supports 2-8 hardware threads. A large portion of the chip for a CPU is
-dedicated to caching and other features that in some ways make up for
+typically supports 2-8 hardware threads. Even CPU nodes on scientific computing clusters usually
+support fewer than 32 threads. Instead of supporting many hardware threads, CPU designers 
+choose to dedicate a large portion of the chip for a CPU to
+caching and other features that in some ways make up for
 programming inefficiencies that would otherwise reduce performance.
 
 Our project has mostly focused on writing code that will run on Graphical
-Processing Units (GPUs). GPUs are characterized by extremely high thread counts
-(for full performance, a GPU requires a \emph{minimum} of 1000 threads),
+Processing Units (GPUs). GPUs are characterized by extremely high thread counts\footnote{
+In order to saturate its cores, a GPU requires a minimum of approximately 15,000 threads, 
+with 150,000+ being requried for good performance},
 decreased memory per thread, and relatively small instruction sets when compared
 to CPUs. In general, this means that programming on a GPU is less forgiving in the 
 sense that sloppy programs will run significantly slower. For this reason,
-despite the much higher level of parallelism afforded by the largee thread
+despite the much higher level of parallelism afforded by the large thread
 count, it is easy to write parallel GPU code that runs slower than
 equivalent serial CPU code.
 
@@ -81,7 +84,7 @@ However, GPUs have many advantages when it comes to high performance computing.
 Since GPUs have a smaller instruction set, they can devote more of their
 transistors to arithmetic computation. This means that GPUs are capable of
 executing significantly more floating point operations per second (FLOPS) than
-CPUs. Additionally, GPUs use less power than CPUs, which makes them appealing
+CPUs. Additionally, GPUs are more efficient (in terms of FLOPs/watt) than CPUs, which makes them appealing
 in supercomputers, where power consumption is a major concern.
 
 Well implemented GPU code can yield significant speedup in certain
@@ -103,14 +106,14 @@ execution on the CPU should ideally access memory locations immediately adjacent
 to that same thread's previous access.
 
 However, this is not the case on the GPU. On a GPU, groups of threads called
-\emph{warps} share a cache. For this reason, among others, threads in a warp
+\emph{warps} all access memory at the same time. For this reason, among others, threads in a warp
 should coordinate their memory accesses such that adjacent threads in
 a warp access adjacent locations in memory, a pattern called 'coalescing'.
 
 These differences between ideal CPU code and GPU code mean that code that is
 written well for one architecture will usually perform poorly on the other if
 ported directly without changing the data structures and memory access patterns.
-Therefore, code tends to be architecture dependent, so switching to a new
+Therefore, code tends to be architecture-dependent, so switching to a new
 architecture often means rewriting an entire codebase. This is not ideal for
 Sandia, where the mathematicians, engineers and scientists are interested in 
 using the most up-to-date architecture without
