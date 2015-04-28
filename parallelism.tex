@@ -5,7 +5,7 @@
 When the project started, the version of Kokkos installed on our machine did
 not include teams. This meant that we could not use any algorithms that
 required shared memory or intra-team reductions. We had access to an atomic fetch and add
-function, but this can have performance costs. This occurs becaus atomic fetch and adds can 
+function, but this can have performance costs. This occurs because atomic fetch and adds can 
 cause a bottleneck if too many threads
 are trying to write to the same memory location. Therefore, we were limited to
 writing \emph{flat} algorithms in which each thread knew its responsibility and did not
@@ -137,7 +137,7 @@ reduction method that is described in Section~\ref{sec:reduction} becomes useful
 
 Another feature of the GPU that can be leveraged that is outside the scope of
 flat parallelism is shared memory. Shared memory is essentially a user controlled cache
-on the GPU. Algorithms that use shared memeory will be discussed in
+on the GPU. Algorithms that use shared memory will be discussed in
 Section~\ref{slicing} and Section~\ref{sec:tiling}. The main benefits of not
 using shared memory are it is easier to code and the speedup of shared memory over flat parallelism 
 is relatively small compared to the speedup flat parallel algorithms reap over
@@ -496,7 +496,7 @@ algorithm is by example. Consider one of the matrix multiplications in
 \label{fig:Slicing}
 \end{figure}
 
-    In Figure~\ref{fig:Slicing}, on the left, we have the first of the two input matrixes, whose first row's
+    In Figure~\ref{fig:Slicing}, on the left, we have the first of the two input matrices, whose first row's
 elements are labeled $A-E$. On the right we have the second of the two inputs.
 For the sake of simplicity, assume that we have one block of five threads which
 are labeled by color. Each of the threads reads in one of the elements on the
@@ -599,7 +599,7 @@ we get a small amount of speedup relative to flat Cuda code, which is
 promising. This is the corner where we would expect slicing to perform the best
 with respect to independent parallelism, since in this corner flat parallelism
 is unable to fully saturate the GPU. The benefits of reuse in this corner are
-significant enough to outcompete flat parallelism. On the rest of the graph,
+significant enough to out-compete flat parallelism. On the rest of the graph,
 however, the inability of slicing to saturate the GPU means that it is
 significantly slower that flat parallelism. Since $\ell = \mathcal{R} = 10$,
 the algorithm naturally only spawns 10 threads per block, which is not enough
@@ -747,7 +747,19 @@ Consider the graph generated in Figure~\ref{fig:TilingPerformance} for \texttt{C
 
 We also created a tiling implementation of \texttt{ContractFieldFieldTensor}. Conceptually, it is much more difficult to envision how to approach tiling on multidimensional problems. \texttt{ContractiFieldFieldTensor}, which can be described by the equation $L_{C,\ell,P,d_1,d_2} \times R_{C, \mathcal{R}, P,d_1,d_2} = O_{C,\ell, \mathcal{R}}$, therefore presents an interesting problem for the tiling approach. 
 
-Unlike slicing, there seem to be multiple distinct ways of approaching the problem. One can ``unroll" the entire contraction to create a situation where the left and right matrices are rectangular, but can be covered by 2D tiles. Alternatively, algorithms could cover the left and right inputs using multidimentional tiles. While conceptually these two approaches seem distinct, they are functionally equivalent. Ultimately, tiling involves loading pieces of both the input and output matrices into shared memory and operating on them repeatedly. As long as we avoid suboptimal memory access patterns, it makes no difference whether we visualize the tiles as two dimensional or with even higher dimensions. For ease of understanding, we implemented \texttt{ContractFieldFieldTensor}'s tiling kernels with ``unrolled" contractions. This essentially, reduces the kernel to a series of long dot products in our vision of the memory layout. 
+Unlike slicing, there seem to be multiple distinct ways of approaching the
+problem. One can ``unroll" the entire contraction to create a situation where
+the left and right matrices are rectangular, but can be covered by 2D tiles.
+Alternatively, algorithms could cover the left and right inputs using
+multidimentional tiles. While conceptually these two approaches seem distinct,
+they are functionally equivalent. Ultimately, tiling involves loading pieces of
+both the input and output matrices into shared memory and operating on them
+repeatedly. As long as we avoid suboptimal memory access patterns, it makes no
+difference whether we visualize the tiles as two dimensional or with even higher
+dimensions. For ease of understanding, we implemented
+\texttt{ContractFieldFieldTensor}'s tiling kernels with ``unrolled"
+contractions. This essentially, reduces the kernel to a series of long dot
+products in our vision of the memory layout. 
 
 Using the tiling method on \texttt{ContractFieldFieldTensor} we were able to generate speedup of between $1.5$ and $2$ times over flat parallelism, as shown in Figure~\ref{fig:CFFTSpeedup}. 
 
@@ -758,7 +770,15 @@ Using the tiling method on \texttt{ContractFieldFieldTensor} we were able to gen
 \label{fig:CFFTSpeedup}
 \end{figure}
 
-In these cases, the size of the contraction will often be larger than the number of basis functions by as much as an order of magnitude. This makes tiling significantly less efficient because the matrices are rectangular instead of square, as we previously discussed. In this case, the number of GPU blocks capable of working on a contraction using the tiling algorithm is given by $\frac{\text{number of basis functions}}{\text{size of a tile}}$. While tiling can still perform well in these use cases, as shown by Figures~\ref{fig:multiDTiling1} and \ref{fig:multiDTiling2}, it does not perform as well as on square matrices.
+In these cases, the size of the contraction will often be larger than the number
+of basis functions by as much as an order of magnitude. This makes tiling
+significantly less efficient because the matrices are rectangular instead of
+square, as we previously discussed. In this case, the number of GPU blocks
+capable of working on a contraction using the tiling algorithm is given by
+$\frac{\text{number of basis functions}}{\text{size of a tile}}$. While tiling
+can still perform well in these use cases, as shown by
+Figures~\ref{fig:multiDTiling1} and \ref{fig:multiDTiling2}, it does not perform
+as well as on square matrices.
 
 \begin{figure}[H]
     \centering

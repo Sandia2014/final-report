@@ -60,7 +60,7 @@ includes the flat parallel algorithm in both Kokkos Cuda and Cuda.
 \end{figure}
 
 In Figure~\ref{fig:cffscomparison}, the Cuda slicing performance is almost
-identical to the Kokkos slicing performance. This shows that Kokkos's use of
+identical to the Kokkos slicing performance. This shows that Kokkos' use of
 shared memory matches that of Cuda.
 
 Overall, most of our graphs show that Kokkos performs almost identically to Cuda
@@ -74,7 +74,7 @@ feature, or library is code complexity and ease of coding. Thus, we also
 investigated the usability, readability, and intuitiveness of Kokkos compared to
 Cuda and OpenMP.
 
-Parallelizing code with Kokkosis significantly more complex than doing the same
+Parallelizing code with Kokkos is significantly more complex than doing the same
 with OpenMP.  However, OpenMP is considerably less flexible than Kokkos; it
 works only on the CPU, and does not generalize to the GPU.  Therefore, in the
 case of code that needs only to run on the CPU, we would strongly advise OpenMP
@@ -239,7 +239,7 @@ declare the data members and the constructor), the Kokkos code is readable and
 uncluttered.
 
 The Kokkos functor does not need to calculate each thread's ID, while the Cuda
-kernel has to use built-in constants such as blockId.x and  blockDim.x.
+kernel has to use built-in constants such as blockId.x and blockDim.x.
 Indexing into a View is easier than indexing into a primitive C-style array,
 especially when changing the layout of the data between LayoutLeft and
 LayoutRight because no code changes need to occur in the functor.
