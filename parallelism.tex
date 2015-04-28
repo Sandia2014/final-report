@@ -144,11 +144,11 @@ is relatively small compared to the speedup flat parallel algorithms reap over
 serial code. 
 
 % Ellen
-\section{Reduction} \label{sec:reduction} In some cases, flat parallelism can
-perform very poorly.  One problem with flat parallelism is the potential lack
-of enough parallelism, as in \texttt{ContractDataDataTensor}.
-\texttt{ContractDataDataTensor} takes two input arrays of three-dimensional
-tensors and produces an array of scalars.  See
+\section{Reduction} \label{sec:reduction}
+In some cases, flat parallelism can perform very poorly.  One problem with flat
+parallelism is the potential lack of enough parallelism, as in
+\texttt{ContractDataDataTensor}.  \texttt{ContractDataDataTensor} takes two
+input arrays of three-dimensional tensors and produces an array of scalars.  See
 Section~\ref{section:ContractDataDataTensor} for a more complete description of
 this kernel.
 
@@ -168,38 +168,50 @@ each thread is responsible for a large amount of computation --
 
 A solution to this problem is to use a parallel reduction algorithm instead of
 a flat parallelism algorithm.  In a reduction, multiple threads contribute to a
-single output element.  This adds the necessary overhead of coordinating
-between threads and combining their contributions.
+single output element.  This adds the necessary overhead of coordinating between
+threads and combining their contributions, but allows more threads to be created
+to saturate the GPU.
 
-In our latest version of Kokkos, threads can be organized into teams\footnote{for 
-seasoned Cuda programmers, teams correspond to Cuda blocks}. 
-Built-in reduction methods allow teams to merge the contributions of
-their constituent threads.
+In Kokkos, threads can be organized into teams\footnote{for seasoned Cuda
+programmers, teams correspond to Cuda blocks}.  Built-in reduction methods allow
+teams to merge the contributions of their constituent threads.
 
 Using this team-thread paradigm, we explored several methods of implementing
 \texttt{ContractDataDataTensor} using a reduction algorithm.
 
 \subsection{Team Depth 1}
     In this reduction algorithm, we assign one team per contraction, and each
-    team has as many threads as there are elements in the \texttt{iVec2}
-    dimension.  Each thread therefore performs $\texttt{numPoints} \times
-    \texttt{iVec1}$ multiplications, and then combines its local sum with that
+    team has as many threads as there are elements in the \texttt{\_dim2}
+    dimension.  Each thread therefore performs 
+    $\texttt{\_numPoints} \times \texttt{\_dim2}$ multiplications, and then
+    combines its local sum with that
     of the other threads in the team.
 
 
 \begin{figure}[ht]
-    \begin{lstlisting}
+    \begin{lstlisting}[basicstyle=\tiny]
     // A team does one cell
     const unsigned int cellIndex = thread.league_rank();
 
     float sum = 0;
-    // Each of the _dim1 threads contracts the qp and d1 dimensions
+    
+    // Each of the _dim2 threads contracts the qp and d1 dimensions.
     Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim2),
-        [&] (const unsigned int dim2, float& localsum) {
+    // We use an anonymous (lambda) function here:
+    //      - [&] specifies that all automatic variables in the lambda are
+    //         passed by reference; this allows us to save time that would be
+    //         spent copying large arrays.
+    //      - The lambda takes two arguments, d2 by value and localsum by
+    //         reference.  The first argument is passed to each thread (this is
+    //         the index into the _dim2 dimension to be looped over by this
+    //         thread), and the second is the reduction target.
+        [&] (const unsigned int d2, float& localsum) {
           for (unsigned int qp=0; qp < _numPoints; ++qp) {
             for (unsigned int d1=0; d1 < _dim1; ++d1) {
-              localsum +=  _leftInput(cellIndex, qp, d1, dim2) *
-                _rightInput(cellIndex, qp, d1, dim2);
+              // Each thread loops over two dimensions and then reduces into
+              // localsum
+              localsum +=  _leftInput(cellIndex, qp, d1, d2) *
+                _rightInput(cellIndex, qp, d1, d2);
             }
           }
       }, sum);
@@ -214,7 +226,7 @@ Using this team-thread paradigm, we explored several methods of implementing
 
 \begin{figure}[ht]
     \begin{lstlisting}
-    const team_policy reduction_policy(numCells, iVec2);
+    const team_policy reduction_policy(numCells, _dim2);
     Kokkos::parallel_for(reduction_policy, contractDataDataTensorTeamDepth1Functor );
     Kokkos::fence();
  \end{lstlisting}
@@ -224,12 +236,12 @@ Using this team-thread paradigm, we explored several methods of implementing
 \end{figure}
 
 In Figure~\ref{lst:ContractDataDataTensorDepth1Functor}, we can see that each
-thread loops over the \texttt{numPoints} and \texttt{iVec1} dimensions, and then
+thread loops over the \texttt{\_numPoints} and \texttt{\_dim1} dimensions, and then
 reduces with the other threads in the team.  The call to Kokkos'
 \texttt{parallel\_for} function, seen in
 Figure~\ref{lst:ContractDataDataTensorDepth1Call}, specifies an execution policy
-in which the number of teams launched is \texttt{numCells}, and each team has
-\texttt{iVec1} threads.
+in which the number of teams launched is \texttt{\_numCells}, and each team has
+\texttt{\_dim2} threads.
 
 \begin{figure}[ht]
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth1_clearCache_shadowfax.pdf}
@@ -244,11 +256,12 @@ Therefore, we explored other reduction algorithms, which we hoped would yield
 more impressive results.
 
 \subsection{Team Depth 2}
-    This reduction algorithm is similar to the previous one.  As with the Team
-    Depth 1 reduction, we assign one team per contraction.  Each team has
-    $\texttt{iVec1} \times \texttt{iVec2}$ threads, each responsible for
-    \texttt{numPoints} multiplications.  Each thread then combines its local sum
-    with that of the other threads in the team.
+    This reduction algorithm is similar to the previous one.  In a similar
+    approach to that taken in the Team Depth 1 reduction, we assign one team per
+    contraction.  In contrast to Team Depth 1, here each team has
+    $\texttt{\_dim1} \times \texttt{\_dim2}$ threads, each responsible for
+    \texttt{\_numPoints} multiplications.  Each thread then combines its local
+    sum with that of the other threads in the team.
 
 \begin{figure}[ht]
     \begin{lstlisting}
@@ -256,15 +269,15 @@ more impressive results.
     const unsigned int cellIndex = thread.league_rank();
 
     float sum = 0;
-    // Each of the _dim1 * _dim2 threads qp dimension
+    // Each of the _dim1 * _dim2 threads contracts the _numPoints dimension
     Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim1 * _dim2),
         [&] (const unsigned int threadIndex, float& localsum) {
-          const unsigned int dim1 = threadIndex / _dim2;
-          const unsigned int dim2 = threadIndex % _dim2;
+          const unsigned int d1 = threadIndex / _dim2;
+          const unsigned int d2 = threadIndex % _dim2;
 
           for (unsigned int qp = 0; qp < _numPoints; ++qp) {
-            localsum +=  _leftInput(cellIndex, qp, dim1, dim2) *
-              _rightInput(cellIndex, qp, dim1, dim2);
+            localsum +=  _leftInput(cellIndex, qp, d1, d2) *
+              _rightInput(cellIndex, qp, d1, d2);
           }
 
       }, sum);
@@ -280,7 +293,7 @@ more impressive results.
 
 \begin{figure}[ht]
     \begin{lstlisting}
-    const team_policy reduction_policy(numCells, iVec2 * iVec1);
+    const team_policy reduction_policy(numCells, _dim2 * _dim1);
     Kokkos::parallel_for(reduction_policy, contractDataDataTensorTeamDepth2Functor );
     Kokkos::fence();
  \end{lstlisting}
@@ -290,12 +303,12 @@ more impressive results.
 \end{figure}
 
 In Figure~\ref{lst:ContractDataDataTensorDepth2Functor}, we can see that each
-thread loops over the \texttt{numPoints} dimension only, and then
+thread loops over the \texttt{\_numPoints} dimension only, and then
 reduces with the other threads in the team.  The call to Kokkos'
 \texttt{parallel\_for} function, seen in
 Figure~\ref{lst:ContractDataDataTensorDepth2Call}, specifies an execution policy
-in which the number of teams launched is \texttt{numCells}, and each team has
-$\texttt{iVec1}\times\texttt{iVec2}$ threads.
+in which the number of teams launched is \texttt{\_numCells}, and each team has
+$\texttt{\_dim1}\times \texttt{\_dim2}$ threads.
 
 \begin{figure}[ht]
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth2_clearCache_shadowfax.pdf}
@@ -305,14 +318,15 @@ $\texttt{iVec1}\times\texttt{iVec2}$ threads.
 \end{figure}
 
 As shown in Figure~\ref{fig:ContractDataDataTensorDepth2}, this Team Depth 2
-algorithm always performs better than serial.  In addition, the speedup is
-significant, and for large memory sizes, performs nearly as well as the flat
-parallel algorithm.  Given the necessary overhead of performing a reduction, we
-believe this to be a fairly good algorithm for good performance across the
+algorithm performs better than serial for the three representative use case..
+In addition, the speedup is significant, and for large memory sizes, performs
+nearly as well as the flat parallel algorithm.  Given the necessary overhead of
+performing a reduction, we believe this to be a fairly good algorithm for good
+performance across the
 board.
 
-However, because the team size is fixed based on the size of the \texttt{iVec1}
-and \texttt{iVec2} dimensions, this algorithm may suffer performance penalties
+However, because the team size is fixed based on the size of the \texttt{\_dim1}
+and \texttt{\_dim2} dimensions, this algorithm may suffer performance penalties
 or perhaps even bugs if these two dimensions are of unexpected sizes.  A more
 generalizable algorithm therefore would be preferable.
 
@@ -320,43 +334,35 @@ generalizable algorithm therefore would be preferable.
     A more robust algorithm is one we call the Teamstride algorithm, in which
     each contraction is still assigned to a team, but a fixed number of threads
     are spawned for each team.  These threads treat the three contraction
-    indices (\texttt{numPoints}, \texttt{iVec1}, \texttt{iVec2}) as if they were
+    indices (\texttt{\_numPoints}, \texttt{\_dim1}, \texttt{\_dim2}) as if they were
     a single index, each thread striding forwards by the number of threads on
-    this ``combined'' index.  For instance, if this algorithm were run with a
-    team size of sixty-four threads, then the zeroth thread in a team would sum
-    the product of the zeroth elements, the sixty-fourth, the 128th, and so on.
+    this ``combined'' index.  This technique is similar to that used by OpenMP's
+    collapse clause.  For instance, if this algorithm were run with a team size
+    of sixty-four threads, then the zeroth thread in a team would sum the
+    product of the zeroth elements, the sixty-fourth, the 128th, and so on.
     
 \begin{figure}[ht]
-    \begin{lstlisting} [basicstyle=\tiny]
+    \begin{lstlisting}[basicstyle=\tiny]
     // A team does one cell
     const unsigned int cellIndex = thread.league_rank();
 
-    // Some useful derived constants that we'll reuse
-    const unsigned int dim12 = _dim1 * _dim2;
-    const unsigned int cellSize = _numPoints * dim12;
-
     float sum = 0;
 
-    Kokkos::parallel_reduce
-      (Kokkos::TeamThreadLoop(thread,cellSize),
-       [&](const unsigned int indexWithinContraction, float & localsum) {
-
+    Kokkos::parallel_reduce (Kokkos::TeamThreadLoop(thread,cellSize),
+       [&](const unsigned int threadIndex, float& localsum) {
         // Calculate the next element to add (striding by teamsize)
-        const unsigned int qp = indexWithinContraction / dim12;
-        const unsigned int indexWithinTens1Tens2Thing =
-          indexWithinContraction - qp * dim12;
-        const unsigned int iTens1 = indexWithinTens1Tens2Thing / _dim2;
-        const unsigned int iTens2 = indexWithinTens1Tens2Thing - iTens1*_dim2;
-
-        localsum +=  _leftInput(cellIndex, qp, iTens1, iTens2) *
-          _rightInput(cellIndex, qp, iTens1, iTens2);
+        const unsigned int qp = threadIndex / (_dim1 * _dim2);
+        const unsigned int d1 = threadIndex % (_dim1 * _dim2) / _dim2;
+        const unsigned int d2 = threadIndex % _dim2;
+        
+        localsum +=  _leftInput(cellIndex, qp, d1, d2) *
+          _rightInput(cellIndex, qp, d1, d2);
       } , sum );
 
     if (thread.team_rank() == 0) {
       _output(cellIndex) = sum;
     }
-    \end{lstlisting}
-
+\end{lstlisting}
 \caption{Code from Teamstride functor for \texttt{ContractDataDataTensor}
 \label{lst:ContractDataDataTensorTeamstrideFunctor}} 
 \end{figure}
@@ -372,11 +378,13 @@ generalizable algorithm therefore would be preferable.
 \end{figure}
 
 As seen in Figure~\ref{lst:ContractDataDataTensorTeamstrideFunctor}, this
-algorithm requires more arithmetic on the part of each thread, and the thread
-is not responsible for looping over a single subset of indices, instead looping
-over all three contraction indices. The corresponding call in
+algorithm requires more arithmetic on the part of each thread because the thread
+is not responsible for looping over a single subset of indices but is instead
+looping over all three contraction indices. The corresponding call in
 Figure~\ref{lst:ContractDataDataTensorTeamstrideCall} uses a fixed team size of
-32, unlike the previous two algorithms.
+32, unlike the previous two algorithms.  This team size seemed to be the best
+for performance; a team size of 64 yielded similar speedup, but larger team
+sizes did not perform as well.
 
 \begin{figure}[ht]
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamStride_clearCache_shadowfax.pdf}
