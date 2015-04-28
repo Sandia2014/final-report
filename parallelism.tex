@@ -2,10 +2,12 @@
 
 % Brett
 \section{Flat Parallelism}
-When the project started, the version of Kokkos installed on our machine did
-not include teams. This meant that we could not use any algorithms that
-required shared memory or intra-team reductions. We had access to an atomic fetch and add
-function, but this can have performance costs. This occurs because atomic fetch and adds can 
+%TODO include a flat parallelism kernel somewhere
+In this section, we will discuss how to write `flat' parallel code using Kokkos. 
+Flat parallel code is code that does not use Kokkos' thread teams concept. This means
+that flat parallel code does not make use of GPU shared memory, or intra-team reductions.
+Flat parallel code does have access to an atomic fetch and add function, 
+but this can have performance costs. These costs occur because atomic fetch and add can 
 cause a bottleneck if too many threads
 are trying to write to the same memory location. Therefore, we were limited to
 writing \emph{flat} algorithms in which each thread knew its responsibility and did not
@@ -28,76 +30,85 @@ or matrix multiplications, that must be calculated. Figuring out the best way
 to break down the responsibility of a single thread requires looking at the
 expected problem size. 
 
-The average use case for the example of
-\texttt{ContractFieldFieldScalar} is one thousand to tens of thousands of cells, with
+Representative use cases for the example of
+\texttt{ContractFieldFieldScalar} have from one thousand to tens of thousands of cells, with
 matrix sizes between eight by eight and sixty-four by one hundred twenty-five. In this case, 
 when writing code for the GPU, it
 is best to break down the problem into the smallest possible pieces that avoid interaction, which corresponds
-to one thread per output element. This is
-because it is ideal to minimize the amount of work per thread on the GPU, while still
+to one thread per output element in each output matrix. This is
+because the goal is to minimize the amount of work per thread on the GPU, while still
 avoiding thread interaction. 
 
-The question always becomes: how many threads per contraction is optimal? Well, looking
-at our thread count, which is going to be a couple thousand multiplied by the
-number of threads per contraction, it is best to have anywhere between a couple
-hundred to a thousand. This will ensure that the GPU is being saturated and the
-most parallelism is taking place, meaning higher performance. 
-In general, we need to make sure that the GPU always has a \emph{minimum} of 1000 threads being
-spawned, with numbers in the 10,000-1,000,000 range being preferable. Furthermore,
-we want to reduce the amount of work done by each thread.
+The question always becomes: how many threads per contraction is optimal? 
+As we can see from the dimensions described above, our total number of threads will 
+be roughly 1,000 times our number of threads per contraction. Therefore, we would like
+to have between a couple hundred and a thousand threads per contraction. 
+This will ensure that the GPU is being saturated, which is a necessary condition for
+high performance.
+To reiterate Section~\ref{CPU-GPU}, we need to make sure that the GPU always has a 
+\emph{minimum} of 15,000 threads being
+spawned, with numbers in the 100,000-1,000,000 range being preferable.
 
 When we combine this knowledge with the
-limitation of the threads not being able to interact or write to the same
-memory location, we discover that the ideal number of threads for flat parallelism
-is always equal to
-of entries in the output tensor. 
+goal of the threads not being required to interact or write to the same
+memory location, we discover that the ideal number of threads per contraction we can use for flat parallelism
+is always the same as the maximum number of threads we can use per contraction, because
+this maximizes thread count and minimizes the work per thread. 
+The maximum number of threads we can use is equal to of entries in the output tensor,
+because if we go over that number, then the threads would need to interact to write
+to the same output location.
 
-Looking at our problem size again, the
+Note that the
 expected output tensor dimensions range from a single number (for any problem
 that contains \texttt{DataData} in its name), to sixty-four squared (the largest practical value for
 \texttt{numLeftFields} and \texttt{numRightFields}, which are the dimensions of the output matrix
-for some problems). This range means that for the \texttt{DataData} contractions,
+for some problems). This range means that if we use flat parallelism for the \texttt{DataData} contractions,
 we will only be spawning 1,000-10,000 threads on the GPU in the normal use cases,
-which are on the low end of acceptable in terms of saturation.
+which are below acceptable in terms of saturation. We can see the results of this effect in Figure~%TODO (slower than serial)
 
 Now that the number of threads and their responsibility are known, the best
 access patterns and data layouts must be calculated. As described earlier, the
 best access patterns and data layouts for threads on the CPU are ones that
-utilize the cache. This means that for the CPU, or when using \texttt{Kokkos::OpenMP},
+utilize the cache. This means that when using CPU, which corresponds to code written with \texttt{Kokkos::OpenMP},
 we want a thread's next memory read to be next to its current memory read.
-However, on the GPU, or when using \texttt{Kokkos::Cuda}, a thread's memory read should
-be next to the memory read of the thread right next to it. These two
-optimizations directly conflict, but lucky for us, Kokkos' View data structure
-has two layouts, \texttt{LayoutLeft} and \texttt{LayoutRight}, which changes how data is laid out
-in memory. This means we can use \texttt{LayoutLeft} for one architecture, say
-\texttt{Kokkos::Cuda}, and \texttt{LayoutRight} for the other, \texttt{Kokkos::OpenMP}
+However, when using the GPU, which corresponds to code written with \texttt{Kokkos::Cuda}, a thread's memory read should
+be adjecent to the reads of threads with nearby indices, as these threads will be in the same warp. 
+
+These two memory access patterns are in direct conflict. To solve this problem, Kokkos
+abstracts out the data layout by introducing a data structure called a View that encodes 
+multidimensional arrays with custom memory layouts. The main layout parameters to a Kokkos View
+are \texttt{LayoutLeft} and \texttt{LayoutRight}. In \texttt{LayoutLeft}, the left-most indices are
+adjacent in memory, i.e., incrementing the left-most index by 1 moves to the next memory location.
+The opposite is true for \texttt{LayoutRight}.
+This means we can use \texttt{LayoutLeft} for one architecture, (i.e.
+\texttt{Kokkos::Cuda}), and \texttt{LayoutRight} for the other (\texttt{Kokkos::OpenMP})
 \footnote{In fact, if the memory layout for a view is not provided, Kokkos will default
 to \texttt{LayoutLeft} on the GPU and \texttt{LayoutRight} on a CPU}. 
 
 All that remains is to
 figure out how to arrange the data, or which order to put the indices so that
 one layout coalesces the memory while the other uses the cache. This is best
-shown by an example; in ContractFieldFieldScalar there are inputs $A_{c, l, p}$
+shown by an example; in \texttt{ContractFieldFieldScalar} there are inputs $A_{c, l, p}$
 and $B_{c, r, p}$. Assuming we have a thread per output element in output
 $C_{c, l, r}$, then we can have the inputs ordered as follows: $A_{c, l, p}$
-and $B_{c, r, p}$. When using \texttt{Kokkos::OpenMP}, Kokkos' array structures (known as Views) will be \texttt{LayoutRight}, so
+and $B_{c, r, p}$. When using \texttt{Kokkos::OpenMP}, we will assume that the Views are \texttt{LayoutRight}, so
 $A_{i, j, k}$ will be right next to $A_{i, j, k+1}$ in memory, while $A_{i, j,
 k}$ will be very far from $A_{i+1, j, k}$ in memory. Each thread needs to do a
 dot product of a row in $A$ with a column in $B$, so a thread needs to loop
 through all of $p$ for the same value of $c$ and $l$ in $A$ and also loop
 through all of $p$ for the same $c$ and $r$ in $B$. Notice however that all the
-different value of $p$ in $A$ and $B$, where $c$, $l$, and $r$ are fixed, are
-next to each other in memory. This means that it will be cache friendly for any
+different values of $p$ in $A$ and $B$, where $c$, $l$, and $r$ are fixed, are
+next to each other in memory, sicne we are using \texttt{LayoutRight}. This means that it will be cache friendly for any
 thread. 
 
-Now looking at \texttt{Kokkos::Cuda} which is using a \texttt{LayoutLeft} View, the memory accesses must
-be coalesced in the optimal case. Thus, to get the best performance the algorithm
-needs to be smart about the work that a thread does relative to other nearby
-threads. Since $c$ values that differ by 1 are next to each other in memory
-(because \texttt{LayoutLeft} is being used now), it is best to have thread $x+1$ to do
-the same work as thread $x$, but for the next cell. For example, thread $x$ is
-responsible for calculating $C_{i, j, k}$ so thread $x+1$ is responsible for
-calculating $C_{i+1, j, k}$. This way the memory accesses are always coalesced. 
+In contrast, for \texttt{Kokkos::Cuda}, the memory accesses must
+be coalesced in the optimal case. 
+This can be achieved by using the same data, but storing it in \texttt{LayoutLeft} Views
+instead of \texttt{LayoutRight} views. In this case, $c$ values that differ by 1 are adjacent in memory.
+Therefore, if thread $x$ is
+responsible for calculating $C_{i, j, k}$, thread $x+1$ should responsible for
+calculating $C_{i+1, j, k}$. In this manner, by changing our threading policy and 
+the layout of our Views, our memory accesses are now coalesced, as desired. 
 
 Finding the best way to lay out memory to optimize for both the CPU and GPU is
 not too difficult. One good technique is to first find the best way for caching (CPU),
@@ -108,6 +119,14 @@ be high. Using this flat parallel technique we have received many good results,
 an example of which can be seen in Figure~\ref{lst:ContractFieldFieldScalar
 speedup over serial}, but there are some issues with flat parallelism.
 
+It is important to find a way to arrange the indices of your data such that 
+caching and coalescing can be achieved by chaning the layout of the view (as we just did).
+If we had not laid out our indices as we did above, i.e. if $c$ were in the middle rahter 
+than on the left, then it can be difficult, or even impossible to come up with a threading 
+policy for each of CPU and GPU to match it. In this case, we are back to the scenario of 
+writing different code for different architectures, but the whole goal of our project 
+was to avoid doing so.
+
 \begin{figure}[!ht]
 \includegraphics[scale=.8]{CFFS_VersusSerial_kokkosCudaIndependent.pdf}
 \caption{Speedup over serial of the flat parallel algorithm of the
@@ -117,23 +136,14 @@ does not fit into Sandia's use case of expected problem sizes.
 \label{lst:ContractFieldFieldScalar speedup over serial}} 
 \end{figure}
 
-The biggest issue with the flat parallelism technique is that there isn't
-always enough parallelism for the GPU. For all the problems that have DataData
-in the name, the output is simply an array of numbers, meaning that only one
+Flat parallelism is an easy-to-implement, high-performing algorithm when there is 
+enough work to saturate the GPU. However, there isn't always enough independent work to 
+use flat parallelism. For example, on all the problems that have \texttt{DataData}
+in their name, the output is simply an array of scalars, meaning that only one
 thread per contraction can be used. The GPU is great for using tens of
 thousands of threads to do computation, but when the number of threads is
-severely limited, the CPU performs better. This appears in some of our problems, 
-where serial CPU code outperformed the same problem running on
-the GPU. This is a scenario that should not happen for these types of problems.
-
-The issue is that a small number of threads were created, but there was a lot
-of work that the thread needed to do. Since CPUs are much faster when
-comparing a single thread to a single thread on the GPU, it is no surprise the
-CPU outperforms the GPU in this situation. However to fix it, a thread's job
-needs to be split up between more threads. As mentioned earlier, this is not
-allowed in flat parallelism because the threads would need to a mechanism to
-avoid race conditions when writing to the same location. This is where the
-reduction method that is described in Section~\ref{sec:reduction} becomes useful.
+severely limited, the CPU performs better, so other algorithms must be explored on the GPU. 
+For examples of these algorithms, see Section~\ref{sec:reduction}
 
 Another feature of the GPU that can be leveraged that is outside the scope of
 flat parallelism is shared memory. Shared memory is essentially a user controlled cache
