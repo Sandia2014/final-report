@@ -16,7 +16,7 @@ access pattern) and recorded the runtime of each version.  To reduce noise in
 the timing data, we repeated the same calculations five times and used the
 average time.
 
-Note that because we were unsure how Kokkos implements the team\_reduce()
+Note that because we were unsure how Kokkos implements the intra-team \texttt{team\_reduce()}
 function, we could not write a matching Cuda reduction.  Based on our project
 priorities, we chose not to pursue this further.
 
@@ -33,8 +33,8 @@ and OpenMP for ContractDataDataScalar with a memory size of 1 GB.}
 \label{fig:ContractDataDataScalar Kokkos performance comparison}
 \end{figure}
 
-In this graph, the y-axis is time in seconds, so closer to zero is better. The
-x-axis plots different contraction sizes.  Here, Kokkos OpenMP and OpenMP are
+In this graph, the $y$-axis is time in seconds, so closer to zero is better. The
+$x$-axis plots different contraction sizes.  Here, Kokkos OpenMP and OpenMP are
 almost perfectly overlapping. We are not quite sure why they are not perfectly
 overlapping, but it appears too consistent to be random noise. However, the
 difference is small enough as to be fairly insignificant. 
@@ -64,9 +64,10 @@ identical to the Kokkos slicing performance. This shows that Kokkos' use of
 shared memory matches that of Cuda.
 
 Overall, most of our graphs show that Kokkos performs almost identically to Cuda
-and to OpenMP.  We therefore accepted that Kokkos is not adding any major
-overhead. There may be slight differences due to optimization choices, but
-Kokkos performs similarly to the other multithreading solutions.
+and to OpenMP.  We therefore concluded that Kokkos is not adding any major
+overhead on a variety of problems. 
+There may be slight performance differences due to optimization choices, but
+Kokkos performs similarly to the native multithreading solutions.
 
 \section{Code Snippets}
 Another major factor that plays into whether programmers will use a language,
@@ -86,7 +87,13 @@ presented will point out the differences and similarities directly.  First, we
 will show the data setup step of moving data onto the GPU, and then move to
 comparing and contrasting the Cuda kernel and the Kokkos functor.
 
-Figure~\ref{lst:ContractFieldFieldScalar Cuda Data Setup} shows the setup of the data on the GPU for Cuda.
+Figure~\ref{lst:ContractFieldFieldScalar Cuda Data Setup} shows the setup of the data on the GPU for Cuda. 
+There are three steps in the process: declaring a pointer to the data on the
+CPU, allocating an array with the correct size on the GPU, then copying the data
+over to the GPU from CPU (host) memory. This process is relatively simple and
+self-explanatory. 
+Equivalent Kokkos code is shown in Figure~\ref{lst:ContractFieldFieldScalar
+Kokkos Cuda Data Setup}
 
 \begin{figure}[!htb]
 	\begin{lstlisting}
@@ -105,13 +112,6 @@ cudaMemcpy(dev_leftDataArray, &leftDataArray[0],
 \label{lst:ContractFieldFieldScalar Cuda Data Setup}}
 \end{figure}
 
-There are three steps in the process: declaring a pointer to the data on the
-CPU, allocating an array with the correct size on the GPU, then copying the data
-over to the GPU from CPU (host) memory. This process is relatively simple and
-self-explanatory.
-
-Equivalent Kokkos code is shown in Figure~\ref{lst:ContractFieldFieldScalar
-Kokkos Cuda Data Setup}
 
 \begin{figure}[!htb]
 	\begin{lstlisting}
@@ -152,8 +152,8 @@ of having to use loops to copy the data into the host view instead of simply
 copying raw memory.
 
 However, this initial work is done only once, and allows the user to change the
-layout of the data by simply changing the Kokkos::LayoutRight to
-Kokkos::LayoutLeft.  This is useful in optimizing the data layout for both the
+layout of the data by simply changing the \texttt{Kokkos::LayoutRight} to
+\texttt{Kokkos::LayoutLeft}.  This is useful in optimizing the data layout for both the
 CPU and GPU. Overall, Kokkos is more verbose, but also more abstract, as it must
 perform on both the CPU and GPU while Cuda only runs on the GPU. 
 
@@ -239,10 +239,10 @@ declare the data members and the constructor), the Kokkos code is readable and
 uncluttered.
 
 The Kokkos functor does not need to calculate each thread's ID, while the Cuda
-kernel has to use built-in constants such as blockId.x and blockDim.x.
+kernel has to use built-in constants such as \texttt{blockId.x} and \texttt{blockDim.x}.
 Indexing into a View is easier than indexing into a primitive C-style array,
-especially when changing the layout of the data between LayoutLeft and
-LayoutRight because no code changes need to occur in the functor.
+especially when changing the layout of the data between \texttt{LayoutLeft} and
+\texttt{LayoutRight} because no code changes need to occur in the functor.
 
 \section{Personal Experience and Thoughts}
 
@@ -260,17 +260,17 @@ lack of documentation due to Kokkos' newness was a recurring problem for the
 team.
 
 Another obstacle we found was Kokkos' use of ``magic words''.  For example,
-Kokkos requires the programmer to typedef Kokkos::Cuda or Kokkos::OpenMP to
-device\_type; any other name would cause an error.  Though this is a simple line
+Kokkos requires the programmer to typedef \texttt{Kokkos::Cuda} or \texttt{Kokkos::OpenMP} to
+\texttt{device\_type}; any other name would cause an error.  Though this is a simple line
 to add, it is not an obvious requirement, and initially caused use some
 confusion.  As with the compiler flags, formal documentation would have helped
 in this situation; instead, we relied almost exclusively on example programs.
-In Kokkos' favor, however, that we were able to write all of our programs by
-following a few examples shows Kokkos' intuitiveness.  Overall, found Kokkos'
+In Kokkos' favor, however, the fact that we were able to write all of our programs by
+following a few examples shows Kokkos' intuitiveness.  Overall, we found Kokkos'
 basic philosophy and structure to be elegant and well-designed.
 
 The main difficulties the team encountered with Kokkos was its lack of
-documentation.  While expected in a young project, poor documentation made using
+documentation.  While this is expected in a young project, poor documentation made using
 Kokkos much more difficult.  We expect this to improve in the future, making
 Kokkos significantly more attractive to users.
 
@@ -281,6 +281,6 @@ Phi and Kokkos Views are powerful abstractions that allow a programmer to easily
 change the layout of the data.  Kokkos functors are cleaner and more readable
 than Cuda kernels, and the fact that Kokkos is a C++ library and not a new
 language adds simplicity.  Changes we would like to see in Kokkos include View
-layout options other than LayoutRight and LayoutLeft and the use of fewer
+layout options other than \texttt{LayoutRight} and \texttt{LayoutLeft} and the use of fewer
 ``magic words''.  Kokkos would also greatly benefit from more documentation as
 well as better commenting in the example code.
