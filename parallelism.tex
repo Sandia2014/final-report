@@ -128,10 +128,10 @@ writing different code for different architectures, but the whole goal of our pr
 was to avoid doing so.
 
 \begin{figure}[!ht]
-\includegraphics[scale=.8]{CFFS_VersusSerial_kokkosCudaIndependent.pdf}
+\includegraphics[scale=.8]{CFFSIndependent2.PNG}
 \caption{Speedup over serial of the flat parallel algorithm of the
 \texttt{ContractFieldFieldScalar} kernel. At its best this algorithm runs 60 times
-faster than serial. The closest corner, where speedup is only about 4 times,
+faster than serial. The closest corner, where speedup is only about 2.5 times,
 does not fit into Sandia's use case of expected problem sizes.
 \label{lst:ContractFieldFieldScalar speedup over serial}} 
 \end{figure}
@@ -491,10 +491,10 @@ small contraction sizes.
 
 \begin{figure}
     \centering
-    \subfloat[][Here is a graph showing the special case of Team Reduction algorithm's speedup over serial for ContractFieldFieldScalar. The faster speeds for the smaller contraction size (far left) is where the special case is used.]{\includegraphics[scale = .30]{kokkosCFFSTeamReductionSpecialCase.pdf}
+    \subfloat[][Here is a graph showing the special case of Team Reduction algorithm's speedup over serial for ContractFieldFieldScalar. The faster speeds for the smaller contraction size (far left) is where the special case is used.]{\includegraphics[scale = .32]{ReductionSpecial2.png}
 	\label{fig:CFFSSpecialReduction}}
 	\:
-	\subfloat[][ContractFieldFieldScalar team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.]{\includegraphics[scale = .3]{kokkosCFFSTeamReductionNoSpecialCase}
+	\subfloat[][ContractFieldFieldScalar team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.]{\includegraphics[scale = .32]{ReductionNoSpecial2.PNG}
 	\label{fig:CFFSWithoutSpecialReduction}}
     \caption{A comparison between the reduction algorithm with the special case and the reduction algorithm without the special case.}
 \label{CFFSTeamReduceSpecialCaseGraph}
@@ -776,7 +776,7 @@ algorithm for realizing parallel speedup.
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = .2]{tilinguc1}
+\includegraphics[scale = 1]{CFFS_RawTimes_LR125P216_2.PNG}
 \caption{Raw times for many different algorithms used for ContractFieldFieldScalar. Note that Tiling is the best performing (lowest). This data was generated with $\ell=\mathcal{R}=125$, $p=216$}
 \label{fig:TilingPerformance}
 \end{figure}
@@ -784,7 +784,7 @@ Consider the graph generated in Figure~\ref{fig:TilingPerformance} for \texttt{C
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = .2]{tilinguc2}
+\includegraphics[scale = 1]{CFFS_RawTimes_LRP8_2.PNG}
 \caption{Raw times for many different algorithms used for ContractFieldFieldScalar. This data was generated with $\ell=\mathcal{R}=8$, $p=8$}
 \label{fig:TilingPerformance2}
 \end{figure}
