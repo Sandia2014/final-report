@@ -511,7 +511,14 @@ small contraction sizes.
 %\label{CFFSTeamReduceNoSpecialCaseGraph}
 %\end{figure}
 
-
+\subsection{A Note on Data Layout}
+In both of the next two approaches, we benchmarked our code using a different data layout than the native
+Sandia code. This means that the code we wrote would have to be changed to account for this different layout
+before it could be integrated into Saida's existing code base. We anticipate that this could be done without any
+significant code decrease, since in this case, the change in data layout can be accompanied by a change in 
+memory access pattern such that the accesses are identical in both Sandia's layout and the code we've written.
+Hopefully, once cartesian product reduction spaces are implemented (discussed in \ref{Personal Experience and Thoughts}) these 
+changes will be easy to implement. 
 % Alex
 \section{Slicing} \label{slicing}
 So far, we've introduced flat methods, which feature no interaction between threads, and reduction
