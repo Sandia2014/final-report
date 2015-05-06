@@ -129,10 +129,11 @@ was to avoid doing so.
 
 \begin{figure}[!ht]
 \includegraphics[scale=.8]{CFFSIndependent2.PNG}
-\caption{Speedup over serial of the flat parallel algorithm of the
-\texttt{ContractFieldFieldScalar} kernel. At its best this algorithm runs 60 times
-faster than serial. The closest corner, where speedup is only about 2.5 times,
-does not fit into Sandia's use case of expected problem sizes.
+\caption[Performance of \texttt{ContractFieldFieldScalar} flat parallel]
+{Speedup over serial of the flat parallel algorithm of the
+\texttt{ContractFieldFieldScalar} kernel. At its best this algorithm runs 60
+times faster than serial. The closest corner, where speedup is only about 2.5
+times, does not fit into Sandia's use case of expected problem sizes.
 \label{lst:ContractFieldFieldScalar speedup over serial}} 
 \end{figure}
 
@@ -230,7 +231,7 @@ Using this team-thread paradigm, we explored several methods of implementing
       _output(cellIndex) = sum;
     }
  \end{lstlisting}
-\caption{Code from Team Depth 1 reduction functor for \texttt{ContractDataDataTensor}
+\caption{\texttt{ContractDataDataTensor} Team Depth 1 functor
 \label{lst:ContractDataDataTensorDepth1Functor}} 
 \end{figure}
 
@@ -240,8 +241,7 @@ Using this team-thread paradigm, we explored several methods of implementing
     Kokkos::parallel_for(reduction_policy, contractDataDataTensorTeamDepth1Functor );
     Kokkos::fence();
  \end{lstlisting}
-\caption{Code from kernel launch for \texttt{ContractDataDataTensor} Team Depth
-1 reduction
+\caption{\texttt{ContractDataDataTensor} Team Depth 1 kernel launch
 \label{lst:ContractDataDataTensorDepth1Call}} 
 \end{figure}
 
@@ -255,7 +255,8 @@ in which the number of teams launched is \texttt{\_numCells}, and each team has
 
 \begin{figure}[ht]
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth1_clearCache_shadowfax.pdf}
-\caption{Speedup of ContractDataDataTensor with Team Depth 1 algorithm over
+    \caption[Performance of \texttt{ContractDataDataTensor} Team Depth
+    1]{Speedup of \texttt{ContractDataDataTensor} Team Depth 1 reduction over
     serial
 \label{fig:ContractDataDataTensorDepth1}} 
 \end{figure}
@@ -297,7 +298,7 @@ more impressive results.
     }
     
  \end{lstlisting}
-\caption{Code from Team Depth 2 reduction functor for \texttt{ContractDataDataTensor}
+\caption{\texttt{ContractDataDataTensor} Team Depth 2 functor 
 \label{lst:ContractDataDataTensorDepth2Functor}} 
 \end{figure}
 
@@ -307,8 +308,7 @@ more impressive results.
     Kokkos::parallel_for(reduction_policy, contractDataDataTensorTeamDepth2Functor );
     Kokkos::fence();
  \end{lstlisting}
-\caption{Code from kernel launch for \texttt{ContractDataDataTensor} Team Depth
-2 reduction
+\caption{\texttt{ContractDataDataTensor} Team Depth 2 kernel launch
 \label{lst:ContractDataDataTensorDepth2Call}} 
 \end{figure}
 
@@ -322,8 +322,9 @@ $\texttt{\_dim1}\times \texttt{\_dim2}$ threads.
 
 \begin{figure}[ht]
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth2_clearCache_shadowfax.pdf}
-\caption{Speedup of ContractDataDataTensor with Team Depth 2 algorithm over
-    serial
+    \caption[Performance of \texttt{ContractDataDataTensor} Team Depth
+    2]{Speedup of \texttt{ContractDataDataTensor} with Team Depth 2 reduction
+    over serial
 \label{fig:ContractDataDataTensorDepth2}} 
 \end{figure}
 
@@ -373,7 +374,7 @@ generalizable algorithm therefore would be preferable.
       _output(cellIndex) = sum;
     }
 \end{lstlisting}
-\caption{Code from Teamstride functor for \texttt{ContractDataDataTensor}
+\caption{\texttt{ContractDataDataTensor} Teamstride functor
 \label{lst:ContractDataDataTensorTeamstrideFunctor}} 
 \end{figure}
 
@@ -383,7 +384,7 @@ generalizable algorithm therefore would be preferable.
     Kokkos::parallel_for( reduction_policy, contractDataDataTensorTeamstrideFunctor );
     Kokkos::fence();
     \end{lstlisting}
-\caption{Code from kernel launch for \texttt{ContractDataDataTensor} Teamstride
+\caption{\texttt{ContractDataDataTensor} Teamstride kernel launch
 \label{lst:ContractDataDataTensorTeamstrideCall}} 
 \end{figure}
 
@@ -398,8 +399,8 @@ sizes did not perform as well.
 
 \begin{figure}[ht]
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamStride_clearCache_shadowfax.pdf}
-\caption{Speedup of ContractDataDataTensor with Teamstride algorithm over
-    serial
+    \caption[Performance of \texttt{ContractDataDataTensor} Teamstride]{Speedup
+        of \texttt{ContractDataDataTensor} with Teamstride algorithm over serial
 \label{fig:ContractDataDataTensorTeamstride}} 
 \end{figure}
 
@@ -470,7 +471,7 @@ else {
 	}
 }
     \end{lstlisting}
-\caption{Code for the special reduction case in \texttt{ContractFieldFieldScalar}
+\caption{Code for \texttt{ContractFieldFieldScalar} special reduction case
 \label{lst:ContractFieldFieldScalarReductionSpecialCase}} 
 \end{figure}
 
@@ -496,7 +497,8 @@ small contraction sizes.
 	\:
 	\subfloat[][ContractFieldFieldScalar team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.]{\includegraphics[scale = .32]{ReductionNoSpecial2.PNG}
 	\label{fig:CFFSWithoutSpecialReduction}}
-    \caption{A comparison between the reduction algorithm with the special case and the reduction algorithm without the special case.}
+        \caption[Reduction special case comparison]{A comparison between the reduction algorithm with the special case
+    and the reduction algorithm without the special case.}
 \label{CFFSTeamReduceSpecialCaseGraph}
 \end{figure}
 
@@ -548,15 +550,18 @@ represented in Figure~\ref{fig:Slicing2}.
 \begin{figure}[H]
     \centering
     \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic}
-    \caption{Demonstration of memory accesses for the first team a slicing implementation of ContractFieldFieldScalar}
+    \caption[Memory accesses -- slicing]{Demonstration of memory accesses for the first team a slicing
+        implementation of \texttt{ContractFieldFieldScalar}}
     \label{fig:Slicing}
 
     \includegraphics[scale = .55]{ContractFieldFieldScalarGraphic2}
-    \caption{Demonstration of memory accesses for the second team of a slicing implementation of ContractFieldFieldScalar}
+    \caption[Memory accesses -- slicing]{Demonstration of memory accesses for
+    the second team of a slicing implementation of
+    \texttt{ContractFieldFieldScalar}}
     \label{fig:Slicing2}
 \end{figure}
 
-We see that for the ContractFieldFieldScalar example, where our equation is given by
+We see that for the \texttt{ContractFieldFieldScalar} example, where our equation is given by
 $A_{c,l,p} \times B_{c, r, p} = O_{c,l, r}$, the
 number of blocks initialized by the algorithm will be equal $l \times c$,
 since there are $l$ blocks per matrix, and we have $c$ matrices.
@@ -587,7 +592,7 @@ Additionally, there will be $r$ threads per block.
     outputView(c, l, r) = sum;
 
    \end{lstlisting}
-\caption{Code from slicing algorithm on \texttt{ContractFieldFieldScalar}
+\caption{Code from \texttt{ContractFieldFieldScalar} slicing
 \label{lst:ContractFieldFieldScalarSlice}} 
 \end{figure}
 
@@ -626,7 +631,9 @@ results, as shown by Figure~\ref{fig:CFFSSlicingVSIndepentent}.
 \begin{figure}[!ht] 
     \centering
     \includegraphics[scale = .15]{slicingvsindependent}
-    \caption{ContractFieldFieldScalar slicing speedup compared to independent parallelism}
+    \caption[\texttt{ContractFieldFieldScalar} speedup over
+    flat parallel]{\texttt{ContractFieldFieldScalar} slicing speedup compared to
+    independent parallelism}
 \label{fig:CFFSSlicingVSIndepentent}
 \end{figure}
 
@@ -654,7 +661,8 @@ This technique has shown promising results on \texttt{ContractFieldFieldTensor},
     \caption{Performance of slicing parallelism when compared to serial}
 
     \includegraphics[scale = .12]{CFFTAdaptiveSlicingVSSerial}
-    \caption{Performance of Adaptive Slicing on the same problem, note the increased speedup}
+    \caption[Performance of adaptive slicing]{Performance of Adaptive Slicing on
+    the same problem, note the increased speedup}
 \label{fig:TwoSlicings}
 \end{figure}
 
@@ -675,10 +683,12 @@ algorithm by example. Consider one of the matrix multiplications in
 \begin{figure}[!ht]
     \centering
     \includegraphics[scale = .4]{SharedMem1.png}
-    \caption{Demonstration of first round of memory accesses for a tiling implementation of ContractFieldFieldScalar}
+    \caption[Memory accesses -- tiling]{Demonstration of first round of memory
+        accesses for a tiling implementation of \texttt{ContractFieldFieldScalar}}
     
-    \includegraphics[scale = .4]{SharedMem2.png}
-    \caption{Demonstration of second round of memory accesses for a tiling implementation of ContractFieldFieldScalar}
+    \includegraphics[scale = .4]{SharedMem2.png} \caption[Memory accesses --
+    tiling]{Demonstration of second round of memory accesses for a tiling
+        implementation of \texttt{ContractFieldFieldScalar}}
 \label{fig:Tiling}
 \end{figure}
 
@@ -761,7 +771,8 @@ evenly divides both the contraction size and $\ell = \mathcal{R} =
    outputView(resultMatrix, row, col) = sum;
    resultTileIndex += thread.league_size();
  \end{lstlisting}
- \caption{Kokkos implementation of tiling for ContractFieldFieldScalar}
+ \caption[\texttt{ContractFieldFieldScalar} tiling implementation]{Kokkos
+     implementation of tiling for \texttt{ContractFieldFieldScalar}}
  \label{lst:ContractFieldFieldScalarTilingCode}
 \end{figure}
 
@@ -771,16 +782,22 @@ algorithm for realizing parallel speedup.
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = 1]{CFFS_RawTimes_LR125P216_2.PNG}
-\caption{Raw times for many different algorithms used for ContractFieldFieldScalar. Note that Tiling is the best performing (lowest). This data was generated with $\ell=\mathcal{R}=125$, $p=216$}
+\includegraphics[scale = 1]{CFFS_RawTimes_LR125P216_2.PNG} 
+\caption[\texttt{ContractFieldFieldScalar} performance summary (large)]{Raw times
+    for many different algorithms used for \texttt{ContractFieldFieldScalar}.
+    Note that Tiling is the best performing (lowest). This data was generated
+    with
+    $\ell=\mathcal{R}=125$, $p=216$}
 \label{fig:TilingPerformance}
 \end{figure}
 Consider the graph generated in Figure~\ref{fig:TilingPerformance} for \texttt{ContractFieldFieldScalar}. We see that tiling outperforms both flat parallelism and team reductions across the board. This trend continues for smaller use cases as well, as shown in Figure~\ref{fig:TilingPerformance2} when $\ell = \mathcal{R} = 8$, $P = 8$.
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = 1]{CFFS_RawTimes_LRP8_2.PNG}
-\caption{Raw times for many different algorithms used for ContractFieldFieldScalar. This data was generated with $\ell=\mathcal{R}=8$, $p=8$}
+    \includegraphics[scale = 1]{CFFS_RawTimes_LRP8_2.PNG}
+    \caption[\texttt{ContractFieldFieldScalar} performance summary (small)]{Raw
+        times for many different algorithms used for ContractFieldFieldScalar.
+        This data was generated with $\ell=\mathcal{R}=8$, $p=8$}
 \label{fig:TilingPerformance2}
 \end{figure}
 
@@ -807,7 +824,10 @@ Using the tiling method on \texttt{ContractFieldFieldTensor} we were able to gen
 \begin{figure}[H]
     \centering
 \includegraphics[scale = .2]{ContractFieldFieldTensor}
-\caption{Speedup of Tiling for ContractFieldFieldTensor over independent parallelism. This data was generated with $\ell = \mathcal{R} = 16$, $d_1 = d_2 = 4$, and $P$ varying from 16 to 128. The tile size used was 16.}
+\caption[\texttt{ContractFieldFieldScalar} Tiling performance]{Speedup of Tiling
+    for \texttt{ContractFieldFieldTensor} over independent parallelism. This data was
+    generated with $\ell = \mathcal{R} = 16$, $d_1 =
+d_2 = 4$, and $P$ varying from 16 to 128. The tile size used was 16.}
 \label{fig:CFFTSpeedup}
 \end{figure}
 
@@ -823,15 +843,25 @@ as well as on square matrices.
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = .2]{CFFTTiling1}
-\caption{Speedup for serial, independent, and tiling approaches to \texttt{ContractFieldFieldScalar}. This data was generated with $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This graph uses a relatively low memory size, which limits the number of cells}
+    \includegraphics[scale = .2]{CFFTTiling1}
+    \caption[\texttt{ContractFieldFieldScalar} tiling (small
+    memory)]{Speedup for serial, independent, and tiling approaches to
+        \texttt{ContractFieldFieldScalar}.  This data was generated with
+        $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$
+varying from $8$ to $128$. This graph uses a relatively low memory size, which
+limits the number of cells}
 \label{fig:multiDTiling1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
 \includegraphics[scale = .2]{CFFTTiling2}
-\caption{Speedup for serial, independent, and tiling approaches to \texttt{ContractFieldFieldScalar}. This data was generated with $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This data was collected while simulating a memory size an order of magnitude larger than the previous image, leading to a significantly higher cell count. }
+\caption[\texttt{ContractFieldFieldScalar} tiling (large
+memory)]{Speedup for serial, independent, and tiling approaches to
+    \texttt{ContractFieldFieldScalar}. This data was generated with
+    $\ell=\mathcal{R}=16$, $d_1=d_2=4$, with $p$ varying from $8$ to $128$. This
+data was collected while simulating a memory size an order of magnitude larger
+than the previous image, leading to a significantly higher cell count. }
 \label{fig:multiDTiling2}
 \end{figure}
 
@@ -907,7 +937,8 @@ Excerpts from our implementation of tiling for ContractFieldFieldTensor are incl
       _outputView(resultMatrix, row, col) = sum;
       
  \end{lstlisting}
-\caption{Code for chokes implementation of tiling for ContractFieldFieldTensor}
+ \caption[Tiling implementation code]{Code for Kokkos implementation of tiling
+     for \texttt{ContractFieldFieldTensor}}
 \label{lst:CFFTTilingCode}
 \end{figure}
  
