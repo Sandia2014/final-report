@@ -1,8 +1,44 @@
 \chapter{Parallelism}
 
+%Tyler
+\section{Testing for Speedup}
+
+Throughout our project, it was important to us to understand how performant our code was compared to the existing code in Intrepid.
+To do so, our team ran performance testing using a machine equipped with a \emph{CPU type goes here} %TODO what was our CPU?
+and an NVIDIA Tesla K20 for our Cuda and Kokkos GPU timing testing. 
+
+In order to generate plots that help understand how our code performs, we collected data for each of the different functors we created.
+For serial code and OpenMP code, this simply meant getting the time before the block of code, and then getting the difference in time
+after the block of code. See Figure~\ref{lst:OMPTiming} for an example of this. For Cuda or Kokkos code, we instead start the clock before the kernel launch or call to \texttt{parallel\_for}, and stop the clock after a device syncrhonize, so that we know our code has finished running.
+
+\begin{figure}[ht]
+    \begin{lstlisting}
+    timespec tic;
+    timespec toc;
+    
+    clock_gettime(CLOCK_MONOTONIC, &tic);
+    
+    for ...
+    	for ...  // Do OpenMP or serial contraction
+    
+    clock_gettime(CLOCK_MONOTONIC, &toc);
+ \end{lstlisting}
+\caption{Example timing for Serial/OpenMP code}
+\label{lst:OMPTiming}
+\end{figure}
+
+In order to smooth our data, we run our timing tests 10 times, and use the average time over all 10 attempts in our results. This was necessary for any parallel 
+code, in order to counteract the non-determinisim in scheduling. This has the potetntial to lead to caching effects causing later attempts to be faster. In order 
+to counteract this, in between timing tests, we run kernels on the CPU and GPU that load a bunch of junk data into memory, and then access it for dummy sums until we are 
+satisfied that the cache is clean. 
+
+In future sections, whereever a graph appears with a label along the lines of ``Speedup over serial,'' (see Figure~\ref{lst:ContractFieldFieldScalar speedup over serial} as an example),
+the data was obtained using this testing method on our computer. Speedup over serial means the time of the kernel in question divided by the time of the serial code. This means 
+that a reported speedup of 2 corresponds to our kernel running twice as fast as the pre-existing serial code.
+
+
 % Brett
 \section{Flat Parallelism}
-%TODO include a flat parallelism kernel somewhere
 In this section, we will discuss how to write `flat' parallel code using Kokkos. 
 Flat parallel code is code that does not use Kokkos' thread teams concept. This means
 that flat parallel code does not make use of GPU shared memory, or intra-team reductions.
@@ -431,7 +467,7 @@ reduction case.
 
 The special reduction case creates fewer teams, giving more work per team, if
 more than half of the threads in a warp are being wasted. Consider the
-case of ContractFieldFieldScalar where 24 threads can wasted, because only 8
+case of \texttt{ContractFieldFieldScalar} where 24 threads can wasted, because only 8
 need to do a multiply then reduction, one quarter of the teams are created, and
 each team is responsible for calculating four times as many outputs elements.
 This case adds the code in
@@ -494,10 +530,10 @@ small contraction sizes.
 
 \begin{figure}
     \centering
-    \subfloat[][Here is a graph showing the special case of Team Reduction algorithm's speedup over serial for ContractFieldFieldScalar. The faster speeds for the smaller contraction size (far left) is where the special case is used.]{\includegraphics[scale = .32]{ReductionSpecial2.png}
+    \subfloat[][Here is a graph showing the special case of Team Reduction algorithm's speedup over serial for \texttt{ContractFieldFieldScalar}. The faster speeds for the smaller contraction size (far left) is where the special case is used.]{\includegraphics[scale = .32]{ReductionSpecial2.png}
 	\label{fig:CFFSSpecialReduction}}
 	\:
-	\subfloat[][ContractFieldFieldScalar team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.]{\includegraphics[scale = .32]{ReductionNoSpecial2.PNG}
+	\subfloat[][\texttt{ContractFieldFieldScalar} team reduction's speedup over serial without the special case in the reduction. Notice that the smaller contraction sizes continue to perform worse, which was not the case for the reduction algorithm with the special case.]{\includegraphics[scale = .32]{ReductionNoSpecial2.PNG}
 	\label{fig:CFFSWithoutSpecialReduction}}
         \caption[Reduction special case comparison]{A comparison between the reduction algorithm with the special case
     and the reduction algorithm without the special case.}
@@ -634,7 +670,7 @@ calculate multiple output elements. In these cases, it seems
 clear that slicing will not be an efficient algorithm. 
 	
 When we compare slicing approaches using one contraction per team to
-independent flat parallelism on ContractFieldFieldScalar, we get underwhelming
+independent flat parallelism on \texttt{ContractFieldFieldScalar}, we get underwhelming
 results, as shown by Figure~\ref{fig:CFFSSlicingVSIndepentent}. 
 
 \begin{figure}[!ht] 
@@ -723,8 +759,7 @@ Additionally, if we set the dimension of our tiles intelligently, the algorithm
 saturates the GPU with both teams and threads, something that is very
 difficult to do adaptively with pure slicing. 
 	
-%TODO this should probably be Kokkos, and not have the limitations
-    Excerpts from our CKokkos implementation of tiling are included in Figure~\ref{lst:ContractFieldFieldScalarTilingCode}. The
+    Excerpts from our Kokkos implementation of tiling are included in Figure~\ref{lst:ContractFieldFieldScalarTilingCode}. The
 code assumes that \texttt{tileSize} (the horizontal and vertical dimensions of a tile)
 evenly divides both the contraction size and $\ell = \mathcal{R} =
 \text{numBasis}$.
@@ -805,7 +840,7 @@ Consider the graph generated in Figure~\ref{fig:TilingPerformance} for \texttt{C
     \centering
     \includegraphics[scale = 1]{CFFS_RawTimes_LRP8_2.PNG}
     \caption[\texttt{ContractFieldFieldScalar} performance summary (small)]{Raw
-        times for many different algorithms used for ContractFieldFieldScalar.
+        times for many different algorithms used for \texttt{ContractFieldFieldScalar}.
         This data was generated with $\ell=\mathcal{R}=8$, $p=8$}
 \label{fig:TilingPerformance2}
 \end{figure}
@@ -872,7 +907,7 @@ than the previous image, leading to a significantly higher cell count. }
 \label{fig:multiDTiling2}
 \end{figure}
 
-Excerpts from our implementation of tiling for ContractFieldFieldTensor are included in Figure~\ref{lst:CFFTTilingCode}, which have been simplified using the assumption that $\ell=\mathcal{R}$ as well as the assumption that the size of each tile evenly divides every other dimension for clarity. 
+Excerpts from our implementation of tiling for \texttt{ContractFieldFieldTensor} are included in Figure~\ref{lst:CFFTTilingCode}, which have been simplified using the assumption that $\ell=\mathcal{R}$ as well as the assumption that the size of each tile evenly divides every other dimension for clarity. 
 
 \begin{figure}[H]
     \begin{lstlisting} [basicstyle=\tiny]
