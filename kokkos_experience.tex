@@ -26,7 +26,7 @@ performance comparison} shows the raw times of Kokkos Cuda, Cuda, Kokkos OpenMP,
 and OpenMP for ContractDataDataScalar.
 
 \begin{figure}[!ht]
-{\includegraphics[scale=.4]{CDDS_RawTimes_2d_largestSize_Comparison.pdf}}
+{\includegraphics[scale=.4]{CDDS_RawTimes_2d_largestSize_ComparisonFixed.pdf}}
 \caption[ContractDataDataScalar Kokkos performance comparison]{
     Performance of Kokkos Cuda, Cuda, Kokkos OpenMP,
 and OpenMP for ContractDataDataScalar with a memory size of 1 GB.}
@@ -272,10 +272,19 @@ In Kokkos' favor, however, the fact that we were able to write all of our progra
 following a few examples shows Kokkos' intuitiveness.  Overall, we found Kokkos'
 basic philosophy and structure to be elegant and well-designed.
 
-The main difficulties the team encountered with Kokkos was its lack of
-documentation.  While this is expected in a young project, poor documentation made using
-Kokkos much more difficult.  We expect this to improve in the future, making
-Kokkos significantly more attractive to users.
+The main difficulty the team encountered with Kokkos was its lack of
+documentation.  While this is expected in a young project, poor documentation
+made using Kokkos much more difficult.  We expect this to improve in the future,
+making Kokkos significantly more attractive to users.
+
+In addition, some planned and in-progress features of Kokkos will also be very
+useful for future users. One example of such a feature is cartesian product
+indexing for loops in Kokkos functors.  As we understand it, this feature will
+allow users to specify multiple iteration indices, instead of just one, which
+will remove the need for complicated arithmetic to extract the individual
+indices from a single combined iteration index in multi-dimensional loops.  This
+feature would have made our code much more concise and less prone to programmer
+error.
 
 As a whole, our team's experience with Kokkos has been positive.  It offers a
 powerful, architecture-independent alternative to other multithreading
