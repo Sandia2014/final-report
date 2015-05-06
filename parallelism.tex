@@ -526,11 +526,11 @@ algorithm is by example. Consider one of the matrix multiplications in
 
     In Figure~\ref{fig:Slicing}, on the left, we have the first of the two input matrices, whose first row's
 elements are labeled $A-E$. On the right we have the second of the two inputs.
-For the sake of simplicity, assume that we have one block of five threads which
+For the sake of simplicity, assume that we have one team of five threads which
 are labeled by color. Each of the threads reads in one of the elements on the
 left and copies it into shared memory. In cases where the number of elements
 per contraction (row on the left) is unequal to the number of contractions
-(columns on the right), we set the number of threads per block equal to the
+(columns on the right), we set the number of threads per team equal to the
 number of contractions. This causes threads to either sit idle or loop multiple
 times when reading the elements on the left into shared memory.
 	
@@ -539,12 +539,12 @@ have each thread compute the output element corresponding to one contraction.
 This is shown on the right by the colored columns. Each thread reads every
 element from shared memory and computes the contraction by multiplying these
 elements with the columns of the right matrix. We see that throughout this
-progress, memory accesses will be coalesced within the block, since each thread
+progress, memory accesses will be coalesced within the team, since each thread
 reads the same element from shared memory then multiplies by an element that is
-adjacent to the other elements the rest of the block is reading at that time. 
+adjacent to the other elements the rest of the team is reading at that time. 
 	
-    For every other block of threads, the approach is similar. If Figure~\ref{fig:Slicing}
-represents the first block of the contraction, then the second block will be
+    For every other team of threads, the approach is similar. If Figure~\ref{fig:Slicing}
+represents the first team of the contraction, then the second team will be
 represented in Figure~\ref{fig:Slicing2}. 
 
 \begin{figure}[H]
@@ -563,9 +563,9 @@ represented in Figure~\ref{fig:Slicing2}.
 
 We see that for the \texttt{ContractFieldFieldScalar} example, where our equation is given by
 $A_{c,l,p} \times B_{c, r, p} = O_{c,l, r}$, the
-number of blocks initialized by the algorithm will be equal $l \times c$,
-since there are $l$ blocks per matrix, and we have $c$ matrices.
-Additionally, there will be $r$ threads per block. 
+number of teams initialized by the algorithm will be equal $l \times c$,
+since there are $l$ teams per matrix, and we have $c$ matrices.
+Additionally, there will be $r$ threads per team. 
 
 
     Kokkos code for executing the algorithm as described above is included in Figure~\ref{lst:ContractFieldFieldScalarSlice}. 
@@ -608,13 +608,13 @@ needed to store slices is a limiting factor. One class of examples of this pheno
 
 Intuitively, slicing is reliant on large contraction
 sizes to produce speedup because in situations where the number of threads per
-block is low it is unable to saturate the GPU. In flat parallelism, we use one thread per
+team is low it is unable to saturate the GPU. In flat parallelism, we use one thread per
 element in the output matrix. Critically, these threads are
 not reliant one one another, so the GPU does not have to satisfy constraints to 
 give threads in the same team access to shared memory. In contrast, slicing does 
 place these types of requirements on the GPU, and when the size of a team is small (less than 100)
 the GPU suffers performance decreases that lead to slicing becoming less efficient. 
-remedied by increasing the number of contractions per block, it can introduce
+remedied by increasing the number of contractions per team, it can introduce
 problems with shared memory. Since shared memory is limited by nature (most NVIDIA GPUs offer only 16KB shared memory), slicing has to balance the amount of workwith the amount of shared memory
 available.
 	
@@ -624,13 +624,13 @@ contractions , like \texttt{ContractDataDataScalar}, do not reuse any of the ele
 calculate multiple output elements. In these cases, it seems
 clear that slicing will not be an efficient algorithm. 
 	
-When we compare slicing approaches using one contraction per block to
+When we compare slicing approaches using one contraction per team to
 independent flat parallelism on ContractFieldFieldScalar, we get underwhelming
 results, as shown by Figure~\ref{fig:CFFSSlicingVSIndepentent}. 
 
 \begin{figure}[!ht] 
     \centering
-    \includegraphics[scale = .15]{slicingvsindependent}
+    \includegraphics[scale = .4]{CFFS_Slicing}
     \caption[\texttt{ContractFieldFieldScalar} speedup over
     flat parallel]{\texttt{ContractFieldFieldScalar} slicing speedup compared to
     independent parallelism}
@@ -648,7 +648,7 @@ is unable to fully saturate the GPU. The benefits of reuse in this corner are
 significant enough to out-compete flat parallelism. On the rest of the graph,
 however, the inability of slicing to saturate the GPU means that it is
 significantly slower that flat parallelism. Since $\ell = \mathcal{R} = 10$,
-the algorithm naturally only spawns 10 threads per block, which, as previously discussed, is not enough. 
+the algorithm naturally only spawns 10 threads per team, which, as previously discussed, is not enough. 
 
 Fortunately, this can be counteracted to some degree by loading multiple slices 
 into shared memory simultaneously. This places a larger strain on shared memory, 
@@ -657,16 +657,16 @@ This technique has shown promising results on \texttt{ContractFieldFieldTensor},
 
 \begin{figure}[H]
     \centering
-    \includegraphics[scale = .12]{CFFTSlicingVSSerial}
+    \includegraphics[scale = .4]{CFFTSlicingVSSerial}
     \caption{Performance of slicing parallelism when compared to serial}
 
-    \includegraphics[scale = .12]{CFFTAdaptiveSlicingVSSerial}
+    \includegraphics[scale = .4]{CFFTAdaptiveSlicingVSSerial}
     \caption[Performance of adaptive slicing]{Performance of Adaptive Slicing on
     the same problem, note the increased speedup}
 \label{fig:TwoSlicings}
 \end{figure}
 
-This shows that the adaptive slicing approach does have some process in these applications. These results were generated by loading two slices simultaneously in \texttt{ContractFieldFieldTensor} with $\ell = \mathcal{R} = 125$, $d_1 = d_2 = 4$, and $p=216$.
+This shows that the adaptive slicing approach does have some process in these applications. These results were generated by loading two slices simultaneously in \texttt{ContractFieldFieldTensor} with $\ell = \mathcal{R} = 125$, $d_1 = d_2 = 4$, and $p$ ranging from $160$ to $320$.
 
 % Alex
 \section{Tiling}\label{sec:tiling}
@@ -705,13 +705,13 @@ before we have computed every output element in the first tile in its entirety.
 
     Tiling can be viewed as a more specialized version of slicing, since they
 both use similar access patterns for shared memory. The difference between the
-two lies in tiling's usage of multiple contractions per block, as well as the
+two lies in tiling's usage of multiple contractions per team, as well as the
 the distribution of a contractions operations over multiple loops of the
 routine. Because of these differences, tiling can routinely saturate the GPU in
 a way that pure slicing cannot, since the algorithm inherently limits the
-shared memory usage per block by reusing the same shared memory multiple times.
+shared memory usage per team by reusing the same shared memory multiple times.
 Additionally, if we set the dimension of our tiles intelligently, the algorithm
-saturates the GPU with both blocks and threads, something that is very
+saturates the GPU with both teams and threads, something that is very
 difficult to do adaptively with pure slicing. 
 	
 %TODO this should probably be Kokkos, and not have the limitations
@@ -819,11 +819,11 @@ dimensions. For ease of understanding, we implemented
 contractions. This essentially, reduces the kernel to a series of long dot
 products in our vision of the memory layout. 
 
-Using the tiling method on \texttt{ContractFieldFieldTensor} we were able to generate speedup of between $1.5$ and $2$ times over flat parallelism, as shown in Figure~\ref{fig:CFFTSpeedup}. 
+Using the tiling method on \texttt{ContractFieldFieldTensor} we were able to generate speedup of between $1.5$ and $1.7$ times over flat parallelism, as shown in Figure~\ref{fig:CFFTSpeedup}. 
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = .2]{ContractFieldFieldTensor}
+\includegraphics[scale = .4]{ContractFieldFieldTensor}
 \caption[\texttt{ContractFieldFieldScalar} Tiling performance]{Speedup of Tiling
     for \texttt{ContractFieldFieldTensor} over independent parallelism. This data was
     generated with $\ell = \mathcal{R} = 16$, $d_1 =
@@ -831,19 +831,17 @@ d_2 = 4$, and $P$ varying from 16 to 128. The tile size used was 16.}
 \label{fig:CFFTSpeedup}
 \end{figure}
 
-In these cases, the size of the contraction will often be larger than the number
-of basis functions by as much as an order of magnitude. This makes tiling
-significantly less efficient because the matrices are rectangular instead of
-square, as we previously discussed. In this case, the number of GPU teams
+In this case, the number of GPU teams
 capable of working on a contraction using the tiling algorithm is given by
-$\frac{\text{number of basis functions}}{\text{size of a tile}}$. While tiling
-can still perform well in these use cases, as shown by
-Figures~\ref{fig:multiDTiling1} and \ref{fig:multiDTiling2}, it does not perform
-as well as on square matrices.
+$\frac{\text{number of basis functions}}{\text{size of a tile}}$, where the number of basis functions
+is the number of contractions per left and right matrix. As long as this number
+is sufficiently high, as it was in all of the use cases we were concerned with, 
+tiling should theoretically perform well in these use cases, as shown by
+Figures~\ref{fig:multiDTiling1} and \ref{fig:multiDTiling2}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[scale = .2]{CFFTTiling1}
+    \includegraphics[scale = .4]{CFFTTiling1}
     \caption[\texttt{ContractFieldFieldScalar} tiling (small
     memory)]{Speedup for serial, independent, and tiling approaches to
         \texttt{ContractFieldFieldScalar}.  This data was generated with
@@ -855,7 +853,7 @@ limits the number of cells}
 
 \begin{figure}[H]
     \centering
-\includegraphics[scale = .2]{CFFTTiling2}
+\includegraphics[scale = .4]{CFFTTiling2}
 \caption[\texttt{ContractFieldFieldScalar} tiling (large
 memory)]{Speedup for serial, independent, and tiling approaches to
     \texttt{ContractFieldFieldScalar}. This data was generated with
