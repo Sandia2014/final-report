@@ -236,7 +236,7 @@ Using this team-thread paradigm, we explored several methods of implementing
 
 
 \begin{figure}[ht]
-    \begin{lstlisting}[basicstyle=\tiny]
+    \begin{lstlisting}
     // A team does one cell
     const unsigned int cellIndex = thread.league_rank();
 
@@ -389,7 +389,7 @@ generalizable algorithm therefore would be preferable.
     product of the zeroth elements, the sixty-fourth, the 128th, and so on.
     
 \begin{figure}[ht]
-    \begin{lstlisting}[basicstyle=\tiny]
+    \begin{lstlisting}
     // A team does one cell
     const unsigned int cellIndex = thread.league_rank();
 
@@ -415,7 +415,7 @@ generalizable algorithm therefore would be preferable.
 \end{figure}
 
 \begin{figure}[ht]
-    \begin{lstlisting}[basicstyle=\tiny]
+    \begin{lstlisting}
     const team_policy reduction_policy(numCells, 32);
     Kokkos::parallel_for( reduction_policy, contractDataDataTensorTeamstrideFunctor );
     Kokkos::fence();
@@ -547,7 +547,7 @@ small contraction sizes.
 %\label{CFFSTeamReduceNoSpecialCaseGraph}
 %\end{figure}
 
-\subsection{A Note on Data Shape}
+\subsection{A Note on Data Shape} \label{sec:DataShape}
 In both of the next two approaches, we benchmarked our code using a different data layout than the native
 Sandia code. For example, in ContractFieldFieldScalar our input matrices were placed in memory as $A_{c,l,p}$ and
 $B_{c,p,r}$ instead of $A_{c,l,p}$ and $B_{c,r,p}$ (as they are arranged in the native Sandia code).
@@ -781,8 +781,6 @@ evenly divides both the contraction size and $\ell = \mathcal{R} =
     const unsigned int subRow = thread.team_rank() / tile_size;
     const unsigned int subCol = thread.team_rank()  - subRow * tile_size; // (mod)
 
-    unsigned int resultTileIndex = thread.league_rank();
-
     // Create our tiles
     Kokkos::View<float**, Kokkos::MemoryUnmanaged> LeftTileStorage(thread.team_shmem(), tile_size, tile_size);
     Kokkos::View<float**, Kokkos::MemoryUnmanaged> RightTileStorage(thread.team_shmem(), tile_size, tile_size);
@@ -816,10 +814,10 @@ evenly divides both the contraction size and $\ell = \mathcal{R} =
         thread.team_barrier();
    }
    outputView(resultMatrix, row, col) = sum;
-   resultTileIndex += thread.league_size();
  \end{lstlisting}
  \caption[\texttt{ContractFieldFieldScalar} tiling implementation]{Kokkos
-     implementation of tiling for \texttt{ContractFieldFieldScalar}}
+     implementation of tiling for \texttt{ContractFieldFieldScalar}. Note the change 
+     in data shape as described in \ref{sec:Slicing}}
  \label{lst:ContractFieldFieldScalarTilingCode}
 \end{figure}
 
