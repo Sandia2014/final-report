@@ -6,7 +6,7 @@
 Throughout our project, it was important to us to understand how performant our
 code was compared to the existing code in Intrepid.  To do so, our team ran
 performance testing using a machine equipped with an Intel(R) Xeon(R) E5-2630 v2
-@ 2.60GHz CPU and an NVIDIA Tesla K20m for our Cuda and Kokkos GPU timing
+@ 2.60GHz CPU and an NVIDIA Tesla K20m GPU for our Cuda and Kokkos GPU timing
 testing. 
 
 In order to generate plots that help to understand how our code performs, we
@@ -51,7 +51,7 @@ Figure~\ref{lst:repeats}.
             // Run dummy kernel to clear GPU caches
         }
 
-        parallel\_for(\ldots, KokkosFunctor);
+        parallel_for(..., KokkosFunctor);
         Kokkos::fence();
 
         if (clearCaches) {
@@ -103,7 +103,7 @@ multiplications, that must be calculated. Figuring out the best way to break
 down the responsibility of a single thread requires looking at the expected
 problem size. 
 
-Representative use cases for the example of \texttt{ContractFieldFieldScalar}
+Representative use cases for \texttt{ContractFieldFieldScalar}
 have from one thousand to tens of thousands of cells, with matrix sizes between
 eight by eight and sixty-four by one hundred twenty-five. In this case, when
 writing code for the GPU, it is best to break down the problem into the smallest
@@ -198,12 +198,12 @@ coalesced, as desired.
 
 Finding the best way to lay out memory to optimize for both the CPU and GPU is
 not too difficult. One good technique is to first find the best way for caching (CPU),
-then imagine using the opposite layout (left or right) and seeing if there is
+then imagine using the opposite layout (left or right) and check if there is
 any way to coalesce the memory. This way one functor can be used, the data
 layout can be easily changed, and the performance for both the CPU and GPU will
-be high. Using this flat parallel technique we have received many good results,
+be high. Using this flat parallel technique we have achieved many good results,
 an example of which can be seen in Figure~\ref{lst:ContractFieldFieldScalar
-speedup over serial}, but there are some issues with flat parallelism.
+speedup over serial}
 
 It is important to find a way to arrange the indices of the data such that
 caching and coalescing can be achieved by changing the layout of the View (as we
@@ -232,10 +232,10 @@ threads is severely limited, the CPU performs better, so other algorithms must
 be explored on the GPU.  For examples of these algorithms, see
 Section~\ref{sec:reduction}
 
-Another feature of the GPU that can be leveraged that is outside the scope of
-flat parallelism is shared memory. Shared memory is essentially a user
-controlled cache on the GPU. Algorithms that use shared memory will be discussed
-in Section~\ref{sec:Slicing} and Section~\ref{sec:tiling}. The main benefits of not
+Another feature of the GPU that cannot be used by flat parallelism algorithms in
+Kokkos is shared memory. Shared memory is essentially a user controlled cache on
+the GPU.  Algorithms that use shared memory will be discussed in
+Section~\ref{sec:Slicing} and Section~\ref{sec:tiling}. The main benefits of not
 using shared memory are it is easier to code and the speedup of shared memory
 over flat parallelism is relatively small compared to the speedup flat parallel
 algorithms reap over serial code. 
@@ -261,7 +261,8 @@ contraction indices.
 Because of this, we see that when the contraction size is large and the memory
 size is small -- when we cannot spawn enough threads to saturate the GPU and
 each thread is responsible for a large amount of computation --
-\texttt{ContractDataDataTensor} actually performs worse than serial.
+\texttt{ContractDataDataTensor} actually performs worse than serial, as seen in
+Figure~\ref{fig:CDDT2d}.
 
 A solution to this problem is to use a parallel reduction algorithm instead of
 a flat parallelism algorithm.  In a reduction, multiple threads contribute to a
@@ -285,7 +286,7 @@ Using this team-thread paradigm, we explored several methods of implementing
 
 
 \begin{figure}[ht]
-    \begin{lstlisting}
+    \begin{lstlisting}[basicstyle=\tiny]
     // A team does one cell
     const unsigned int cellIndex = thread.league_rank();
 
@@ -506,7 +507,8 @@ consist of a few large tensor contractions.
 
 \subsection{Reduction Special Case}
 As mentioned above, the parallel reduction algorithm outperforms the flat
-parallel algorithm when there is a small number of threads but lots of work per
+parallel algorithm when there is a small number of threads but a significant
+amount of work per
 thread. We also created parallel reduction algorithms for problems that did not
 have this issue. An example is \texttt{ContractFieldFieldScalar}, which could have as
 small as eight multiplies for a single thread since $p$ could be as few as
@@ -520,11 +522,11 @@ this reduction algorithm. To mitigate this phenomenon we created a special
 reduction case.
 
 The special reduction case creates fewer teams, giving more work per team, if
-more than half of the threads in a warp are being wasted. Consider the
-case of \texttt{ContractFieldFieldScalar} where 24 threads can wasted, because only 8
-need to do a multiply then reduction, one quarter of the teams are created, and
-each team is responsible for calculating four times as many outputs elements.
-This case adds the code in
+more than half of the threads in a warp are being wasted. In
+\texttt{ContractFieldFieldScalar}, where 24 threads can wasted because only
+eight need to do a multiply then reduction, this special case creates one-fourth
+as many teams, and each team is responsible for calculating four times as many
+outputs elements.  This case adds the code in
 Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase} to the functor's
 operator() function.
 
@@ -569,23 +571,24 @@ else {
 \end{figure}
 
 In the code of Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase},
-the number of multiplies that is needed is numPoints. If that number is less
+the number of multiplies that is needed is \texttt{numPoints}. If that number is less
 than 16, then we want one team to do more than one output. Increasing the number
-of active threads per team leads to higher efficiency and speed.  One thing that
-needs to be noted for the code in the special case is that an
-\texttt{atomic\_fetch\_add} is used instead of a \texttt{parallel\_reduce}. This
-is due to the fact that there is no \texttt{parallel\_reduce} function where half
-the threads reduce to one location while the other half reduce to another
-location. This has the side effect of requiring the output locations to be 0
-before the calculation, while in the "normal" reduction algorithm that is not
-necessary. 
+of active threads per team leads to higher efficiency and speed.  Note that the
+special case uses an \texttt{atomic\_fetch\_add} a \texttt{parallel\_reduce}.
+This is due to the fact that there is no \texttt{parallel\_reduce} function
+where half the threads reduce to one location while the other half reduce to
+another location. This has the side effect of requiring the output locations to
+be zeroed out before the calculation, while in the "normal" reduction algorithm
+that is not necessary. 
 
-Another point that needs to be reiterated is that this special case can still
-perform worse than the flat parallel algorithm, but its purpose is to increase
-the performance of a pure reduction algorithm in the region of the plot where it performs most poorly. Figure~\ref{CFFSTeamReduceSpecialCaseGraph} shows the effect of using the
-special case. The flap up for small contraction sizes does not
-exist for the algorithm not including the special case. The reduction with the special case outperforms the reduction algorithm without the special case by a lot for 
-small contraction sizes.
+This special case can still
+perform worse than the flat parallel algorithm, it does increase 
+the performance of a pure reduction algorithm in the region of the plot where it
+performs most poorly. Figure~\ref{CFFSTeamReduceSpecialCaseGraph} shows the
+effect of using the special case. The ``flap up'' for small contraction sizes
+does not exist for the algorithm not including the special case. The reduction
+with the special case significanly outperforms the reduction algorithm without
+the special case for small contraction sizes.
 
 \begin{figure}
     \centering
@@ -656,12 +659,12 @@ represented in Figure~\ref{fig:Slicing2}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=2in]{ContractFieldFieldScalarGraphic}
+    \includegraphics[width=3in]{ContractFieldFieldScalarGraphic}
     \caption[Memory accesses -- slicing]{Demonstration of memory accesses for the first team a slicing
         implementation of \texttt{ContractFieldFieldScalar}}
     \label{fig:Slicing}
 
-    \includegraphics[width=2in]{ContractFieldFieldScalarGraphic2}
+    \includegraphics[width=3in]{ContractFieldFieldScalarGraphic2}
     \caption[Memory accesses -- slicing]{Demonstration of memory accesses for
     the second team of a slicing implementation of
     \texttt{ContractFieldFieldScalar}}
@@ -703,36 +706,42 @@ Additionally, there will be $r$ threads per team.
 \label{lst:ContractFieldFieldScalarSlice}} 
 \end{figure}
 
-    Taking a step back, another possible use of shared memory is to use tiles inspired
-    by cache friendly implementations of matrix multiplication. This approach will be discussed
-    in detail in the next section, but it bears mentioning now for contrast with the slicing approach. 
-    The main advantage of slicing when compared to a tile based approach is that it is easily generalizable to
-tensor contractions of higher dimensions. Unlike tiling (described in Section~\ref{sec:tiling}), which is significantly
-less intuitive in higher dimensions, it is easy to implement slicing in higher
-dimensions by loading a larger slice into shared memory. Because of its
-reliance on shared memory, we would expect it to perform poorly in situations where the memory
-needed to store slices is a limiting factor. One class of examples of this phenomenon are cases where the size of the contraction is large relative to the number of basis functions. 
+Another possible use of shared memory is to use tiles inspired by cache friendly
+implementations of matrix multiplication. This approach will be discussed in
+detail later, in Section~\ref{sec:tiling}, but it bears mentioning now for
+contrast with the slicing approach.  The main advantage of slicing when compared
+to a tile based approach is that it is easily generalizable to tensor
+contractions of higher dimensions. Unlike tiling, which is significantly less
+intuitive in higher dimensions, it is easy to implement slicing in higher
+dimensions by loading a larger slice into shared memory.  Because of its
+reliance on shared memory, we would expect it to perform poorly in situations
+where the memory needed to store slices is a limiting factor. One class of
+examples of this phenomenon are cases where the size of the contraction is large
+relative to the number of basis functions. 
 
-Intuitively, slicing is reliant on large contraction
-sizes to produce speedup because in situations where the number of threads per
-team is low it is unable to saturate the GPU. In flat parallelism, we use one thread per
-element in the output matrix. Critically, these threads are
-not reliant one one another, so the GPU does not have to satisfy constraints to 
-give threads in the same team access to shared memory. In contrast, slicing requires certain
-threads to be placed in the same team, and when the size of a team is small (less than 100)
-this leads to decreased performance. 
-This can be remedied by increasing the number of contractions per team, but this risks introducing
-problems with shared memory. Since shared memory is limited by nature (most NVIDIA GPUs offer only 48KB shared memory), slicing has to balance the amount of work done per team with the amount of shared memory
-available.
+Intuitively, slicing is reliant on large contraction sizes to produce speedup
+because in situations where the number of threads per team is low it is unable
+to saturate the GPU. In flat parallelism, we use one thread per element in the
+output matrix. Critically, these threads are not reliant one one another, so the
+GPU does not have to satisfy constraints to give threads in the same team access
+to shared memory. In contrast, slicing requires certain threads to be placed in
+the same team, and when the size of a team is small (less than 100) this leads
+to decreased performance.  This can be remedied by increasing the number of
+contractions per team, but this risks introducing problems with shared memory.
+Since shared memory is limited by nature (most NVIDIA GPUs offer only 48KB
+shared memory), slicing has to balance the amount of work done per team with the
+amount of shared memory available.
+    
+In situations where the contraction has an inherently large amount of reuse like
+\texttt{ContractFieldFieldScalar}, this problem can be remedied to some degree
+by loading multiple slices into shared memory and reusing them multiple times.
+However, some contractions, like \texttt{ContractDataDataScalar}, do not reuse
+any of the elements in the left input matrix to calculate multiple output
+elements. In these cases, it seems clear that slicing will not be an efficient
+algorithm. 
 	
-    In situations where the contraction has an inherently large amount of reuse
-like \texttt{ContractFieldFieldScalar}, this problem can be remedied to some degree by loading multiple slices into shared memory and reusing them multiple times. However, some 
-contractions , like \texttt{ContractDataDataScalar}, do not reuse any of the elements in the left input matrix to
-calculate multiple output elements. In these cases, it seems
-clear that slicing will not be an efficient algorithm. 
-	
-When we compare slicing approaches using one contraction per team to
-independent flat parallelism on \texttt{ContractFieldFieldScalar}, we get underwhelming
+When we compare slicing approaches using one contraction per team to independent
+flat parallelism on \texttt{ContractFieldFieldScalar}, we get underwhelming
 results, as shown by Figure~\ref{fig:CFFSSlicingVSIndepentent}. 
 
 \begin{figure}[!ht] 
@@ -875,8 +884,9 @@ evenly divides both the contraction size and $l = r =
    }
    outputView(resultMatrix, row, col) = sum;
  \end{lstlisting}
- \caption[\texttt{ContractFieldFieldScalar} tiling implementation]{Kokkos
-     implementation of tiling for \texttt{ContractFieldFieldScalar}. Note the change 
+ \caption[\texttt{ContractFieldFieldScalar} tiling implementation]{A
+     Kokkos implementation
+     of the \texttt{ContractFieldFieldScalar} functor using tiling. Note the change 
      in data shape as described in \ref{sec:Slicing}}
  \label{lst:ContractFieldFieldScalarTilingCode}
 \end{figure}
