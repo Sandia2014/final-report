@@ -16,8 +16,8 @@ access pattern) and recorded the runtime of each version.  To reduce noise in
 the timing data, we repeated the same calculations five times and used the
 average time.
 
-Note that because we were unsure how Kokkos implements the intra-team \texttt{team\_reduce()}
-function, we could not write a matching Cuda reduction.  Based on our project
+Note that because we were unsure how Kokkos implements the inter-team reductions, 
+we could not write a matching Cuda reduction.  Based on our project
 priorities, we chose not to pursue this further.
 
 These graphs present some of the performance differences and similarities of
