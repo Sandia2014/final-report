@@ -3,13 +3,21 @@
 %Tyler
 \section{Testing for Speedup}
 
-Throughout our project, it was important to us to understand how performant our code was compared to the existing code in Intrepid.
-To do so, our team ran performance testing using a machine equipped with a \emph{CPU type goes here} %TODO what was our CPU?
-and an NVIDIA Tesla K20 for our Cuda and Kokkos GPU timing testing. 
+Throughout our project, it was important to us to understand how performant our
+code was compared to the existing code in Intrepid.  To do so, our team ran
+performance testing using a machine equipped with an Intel(R) Xeon(R) E5-2630 v2
+@ 2.60GHz CPU and an NVIDIA Tesla K20m for our Cuda and Kokkos GPU timing
+testing. 
 
-In order to generate plots that help understand how our code performs, we collected data for each of the different functors we created.
-For serial code and OpenMP code, this simply meant getting the time before the block of code, and then getting the difference in time
-after the block of code. See Figure~\ref{lst:OMPTiming} for an example of this. For Cuda or Kokkos code, we instead start the clock before the kernel launch or call to \texttt{parallel\_for}, and stop the clock after a device syncrhonize, so that we know our code has finished running.
+In order to generate plots that help to understand how our code performs, we
+collected data for each of the different functors we created.  For serial code
+and OpenMP code, this simply meant getting the time\footnote{We use
+clock\_gettime instead of the C++11 high resolution timers for compatibility with
+nvcc} before the block of code, and then getting the difference in time after
+the block of code. See Figure~\ref{lst:OMPTiming} for an example of this. For
+Cuda or Kokkos code, we instead start the clock before the kernel launch or call
+to \texttt{parallel\_for}, and stop the clock after a device synchronize, so
+that we know our code has finished running.
 
 \begin{figure}[ht]
     \begin{lstlisting}
@@ -27,124 +35,166 @@ after the block of code. See Figure~\ref{lst:OMPTiming} for an example of this. 
 \label{lst:OMPTiming}
 \end{figure}
 
-In order to smooth our data, we run our timing tests 10 times, and use the average time over all 10 attempts in our results. This was necessary for any parallel 
-code, in order to counteract the non-determinisim in scheduling. This has the potetntial to lead to caching effects causing later attempts to be faster. In order 
-to counteract this, in between timing tests, we run kernels on the CPU and GPU that load a bunch of junk data into memory, and then access it for dummy sums until we are 
-satisfied that the cache is clean. 
+In order to smooth our data, we run our timing tests 10 times, and use the
+average time over all 10 attempts in our results. This was necessary in order to
+counteract non-determinism and noise. This has the potential to lead to caching
+effects causing later attempts to be faster. In order to minimize this, in
+between timing tests, we run kernels on the CPU and GPU that load a bunch of
+junk data into memory, and then access it for dummy sums until we are satisfied
+that the cache is clean.  Pseudocode for this can be seen in
+Figure~\ref{lst:repeats}.
 
-In future sections, whereever a graph appears with a label along the lines of ``Speedup over serial,'' (see Figure~\ref{lst:ContractFieldFieldScalar speedup over serial} as an example),
-the data was obtained using this testing method on our computer. Speedup over serial means the time of the kernel in question divided by the time of the serial code. This means 
-that a reported speedup of 2 corresponds to our kernel running twice as fast as the pre-existing serial code.
+\begin{figure}[ht]
+\begin{lstlisting}
+    for (int repeatIndex = 0; repeatIndex < 10; ++repeatIndex) {
+        if (clearCaches) {
+            // Run dummy kernel to clear GPU caches
+        }
+
+        parallel\_for(\ldots, KokkosFunctor);
+        Kokkos::fence();
+
+        if (clearCaches) {
+            // Run dummy kernel to clear GPU caches
+        }
+
+    }
+
+ \end{lstlisting}
+\caption{Pseudocode of running repeats for timing}
+\label{lst:repeats}
+\end{figure}
+
+In future sections, wherever a graph appears with a label along the lines of
+``Speedup over serial,'' (see Figure~\ref{lst:ContractFieldFieldScalar speedup
+over serial} as an example), the data was obtained using this testing method on
+our computer. Speedup over serial means the time of the serial code divided by
+the time of kernel in question, and so that a reported speedup of 2 corresponds
+to our kernel running twice as fast as the pre-existing serial code.
 
 
 % Brett
 \section{Flat Parallelism}
-In this section, we will discuss how to write `flat' parallel code using Kokkos. 
-Flat parallel code is code that does not use Kokkos' thread teams concept. This means
-that flat parallel code does not make use of GPU shared memory, or intra-team reductions.
-Flat parallel code does have access to an atomic fetch and add function, 
-but this can have performance costs. These costs occur because atomic fetch and add can 
-cause a bottleneck if too many threads
-are trying to write to the same memory location. Therefore, we were limited to
-writing \emph{flat} algorithms in which each thread knew its responsibility and did not
-have to interact with other threads. In this section we will describe how to write
-high performing kernels for both the CPU and GPU using this flat parallelism
-technique. We will also describe some of its shortcomings and which other
-non-flat parallel algorithms solve these issues.
+In this section, we will discuss how to write `flat' parallel code using Kokkos.
+Flat parallel code is code that does not use Kokkos' thread teams concept, which
+means that flat parallel code does not make use of GPU shared memory or
+intra-team reductions.  Flat parallel code can coordinate between threads with atomic
+instructions, but this can have performance costs. These costs occur because
+atomic fetch and add can cause a bottleneck if too many threads are trying to
+write to the same memory location. Therefore, in \emph{flat} algorithms, each
+thread knows its responsibility and does not have to interact with other
+threads. In this section we will describe how to write high performing kernels
+for both the CPU and GPU using this flat parallelism technique. We will also
+describe some of its shortcomings and which other non-flat parallel algorithms
+solve these issues.
 
 Over the course of our project, we identified four main factors that affect
-code's performance. These factors are: the thread count, the amount of work
-each thread must do, memory access patterns, and how data is laid out in memory.
-The first two factors (thread count and work per thread) are linked and are 
+code's performance. These factors are: the thread count, the amount of work each
+thread must do, memory access patterns, and how data is laid out in memory.  The
+first two factors (thread count and work per thread) are linked and are
 inversely proportional to one another. 
 
 The thread count and work per thread are generally determined by how far you
-decide to break down a problem. For example, in \\ \texttt{ContractFieldFieldScalar}, which performs
-many matrix multiplications, a programmer could make each thread do one full matrix
-multiplication. In this case, the thread count must be equal to the number of cells,
-or matrix multiplications, that must be calculated. Figuring out the best way
-to break down the responsibility of a single thread requires looking at the
-expected problem size. 
+decide to break down a problem. For example, in
+\texttt{ContractFieldFieldScalar}, which performs many matrix multiplications, a
+programmer could make each thread do one full matrix multiplication. In this
+case, the thread count must be equal to the number of cells, or matrix
+multiplications, that must be calculated. Figuring out the best way to break
+down the responsibility of a single thread requires looking at the expected
+problem size. 
 
-Representative use cases for the example of
-\texttt{ContractFieldFieldScalar} have from one thousand to tens of thousands of cells, with
-matrix sizes between eight by eight and sixty-four by one hundred twenty-five. In this case, 
-when writing code for the GPU, it
-is best to break down the problem into the smallest possible pieces that avoid interaction, which corresponds
-to one thread per output element in each output matrix. This is
-because the goal is to minimize the amount of work per thread on the GPU, while still
-avoiding thread interaction. 
+Representative use cases for the example of \texttt{ContractFieldFieldScalar}
+have from one thousand to tens of thousands of cells, with matrix sizes between
+eight by eight and sixty-four by one hundred twenty-five. In this case, when
+writing code for the GPU, it is best to break down the problem into the smallest
+possible pieces that avoid interaction, which corresponds to one thread per
+output element in each output matrix. This is because the goal is to minimize
+the amount of work per thread on the GPU, while still avoiding thread
+interaction. 
 
-The question always becomes: how many threads per contraction is optimal? 
-As we can see from the dimensions described above, our total number of threads will 
-be roughly 1,000 times our number of threads per contraction. Therefore, we would like
-to have between a couple hundred and a thousand threads per contraction. 
-This will ensure that the GPU is being saturated, which is a necessary condition for
-high performance.
-To reiterate Section~\ref{CPU-GPU}, we need to make sure that the GPU always has a 
-\emph{minimum} of 15,000 threads being
-spawned, with numbers in the 100,000-1,000,000 range being preferable.
+The question always becomes: how many threads per contraction is optimal?  As we
+can see from the dimensions described above, our total number of threads will be
+roughly 1,000 times our number of threads per contraction. Therefore, we would
+like to have between a couple hundred and a thousand threads per contraction.
+This will ensure that the GPU is being saturated, which is a necessary condition
+for high performance.  To reiterate Section~\ref{CPU-GPU}, we need to make sure
+that the GPU always has a \emph{minimum} of 15,000 threads being spawned, with
+numbers in the 100,000-1,000,000 range being preferable.
 
-When we combine this knowledge with the
-goal of the threads not being required to interact or write to the same
-memory location, we discover that the ideal number of threads per contraction we can use for flat parallelism
-is always the same as the maximum number of threads we can use per contraction, because
-this maximizes thread count and minimizes the work per thread. 
-The maximum number of threads we can use is equal to of entries in the output tensor,
-because if we go over that number, then the threads would need to interact to write
-to the same output location.
+When we combine this knowledge with the goal of the threads not being required
+to interact or write to the same memory location, we discover that the ideal
+number of threads per contraction we can use for flat parallelism is always the
+same as the maximum number of threads we can use per contraction, because this
+maximizes thread count and minimizes the work per thread.  The maximum number of
+threads we can use is equal to of entries in the output tensor, because if we go
+over that number, then the threads would need to interact to write to the same
+output location.
 
-Note that the
-expected output tensor dimensions range from a single number (for any problem
-that contains \texttt{DataData} in its name), to sixty-four squared (the largest practical value for
-\texttt{numLeftFields} and \texttt{numRightFields}, which are the dimensions of the output matrix
-for some problems). This range means that if we use flat parallelism for the \texttt{DataData} contractions,
-we will only be spawning 1,000-10,000 threads on the GPU in the normal use cases,
-which are below acceptable in terms of saturation. We can see the results of this effect in Figure~%TODO (slower than serial)
+Note that within the context of using Intrepid for finite element calculations,
+the expected output tensor dimensions range from a single number (for any
+problem that contains \texttt{DataData} in its name), to sixty-four squared (the
+largest practical value for \texttt{numLeftFields} and \texttt{numRightFields},
+which are the dimensions of the output matrix for some problems). This range
+means that if we use flat parallelism for the \texttt{DataData} contractions, we
+will only be spawning 1,000-10,000 threads on the GPU in the normal use cases,
+which are below acceptable in terms of saturation.  Figure~\ref{fig:CDDT2d}
+illustrates this effect.
+
+\begin{figure}[!ht]
+\includegraphics[width=5in]{CDDT2D}
+\caption[\texttt{ContractDataDataTensor} performance 2d summary]{Performance of
+\texttt{ContractDataDataTensor} flat parallel, serial, and reduction algorithms.
+The reduction algorithm used here is the Teamstride algorithm, detailed in
+Section~\ref{sec:Teamstride}}
+\label{fig:CDDT2d} 
+\end{figure}
 
 Now that the number of threads and their responsibility are known, the best
-access patterns and data layouts must be calculated. As described earlier, the
+access patterns and data layouts must be determined. As described earlier, the
 best access patterns and data layouts for threads on the CPU are ones that
-utilize the cache. This means that when using CPU, which corresponds to code written with \texttt{Kokkos::OpenMP},
-we want a thread's next memory read to be next to its current memory read.
-However, when using the GPU, which corresponds to code written with \texttt{Kokkos::Cuda}, a thread's memory read should
-be adjecent to the reads of threads with nearby indices, as these threads will be in the same warp. 
+utilize the cache. This means that when using CPU, which corresponds to code
+written with \texttt{Kokkos::OpenMP}, we want a thread's next memory read to be
+next to its current memory read.  However, when using the GPU, which corresponds
+to code written with \texttt{Kokkos::Cuda}, a thread's memory read should be
+adjacent to the reads of threads with nearby indices, as these threads will be
+in the same warp. 
 
-These two memory access patterns are in direct conflict. To solve this problem, Kokkos
-abstracts out the data layout by introducing a data structure called a View that encodes 
-multidimensional arrays with custom memory layouts. The main layout parameters to a Kokkos View
-are \texttt{LayoutLeft} and \texttt{LayoutRight}. In \texttt{LayoutLeft}, the left-most indices are
-adjacent in memory, i.e., incrementing the left-most index by 1 moves to the next memory location.
-The opposite is true for \texttt{LayoutRight}.
-This means we can use \texttt{LayoutLeft} for one architecture, (i.e.
-\texttt{Kokkos::Cuda}), and \texttt{LayoutRight} for the other (\texttt{Kokkos::OpenMP})
-\footnote{In fact, if the memory layout for a view is not provided, Kokkos will default
-to \texttt{LayoutLeft} on the GPU and \texttt{LayoutRight} on a CPU}. 
+These two memory access patterns are in direct conflict. To solve this problem,
+Kokkos abstracts out the data layout by introducing a data structure called a
+\texttt{View} that encodes multidimensional arrays with custom memory layouts. The main
+layout parameters to a Kokkos View are \texttt{LayoutLeft} and
+\texttt{LayoutRight}. In \texttt{LayoutLeft}, the left-most indices are adjacent
+in memory, i.e., incrementing the left-most index by 1 moves to the next memory
+location.  The opposite is true for \texttt{LayoutRight}.  This means we can use
+\texttt{LayoutLeft} for one architecture, (i.e.  \texttt{Kokkos::Cuda}), and
+\texttt{LayoutRight} for the other (\texttt{Kokkos::OpenMP}) \footnote{In fact,
+if the memory layout for a view is not provided, Kokkos will default to
+\texttt{LayoutLeft} on the GPU and \texttt{LayoutRight} on a CPU}. 
 
-All that remains is to
-figure out how to arrange the data, or which order to put the indices so that
-one layout coalesces the memory while the other uses the cache. This is best
-shown by an example; in \texttt{ContractFieldFieldScalar} there are inputs $A_{c, l, p}$
-and $B_{c, r, p}$. Assuming we have a thread per output element in output
-$C_{c, l, r}$, then we can have the inputs ordered as follows: $A_{c, l, p}$
-and $B_{c, r, p}$. When using \texttt{Kokkos::OpenMP}, we will assume that the Views are \texttt{LayoutRight}, so
-$A_{i, j, k}$ will be right next to $A_{i, j, k+1}$ in memory, while $A_{i, j,
-k}$ will be very far from $A_{i+1, j, k}$ in memory. Each thread needs to do a
-dot product of a row in $A$ with a column in $B$, so a thread needs to loop
-through all of $p$ for the same value of $c$ and $l$ in $A$ and also loop
-through all of $p$ for the same $c$ and $r$ in $B$. Notice however that all the
-different values of $p$ in $A$ and $B$, where $c$, $l$, and $r$ are fixed, are
-next to each other in memory, sicne we are using \texttt{LayoutRight}. This means that it will be cache friendly for any
-thread. 
+All that remains is to figure out how to arrange the data, or which order to put
+the indices so that one layout coalesces the memory while the other uses the
+cache. This is best shown by an example; in \texttt{ContractFieldFieldScalar}
+there are inputs $A_{c, l, p}$ and $B_{c, r, p}$. Assuming we have a thread per
+output element in output $C_{c, l, r}$, then we can have the inputs ordered as
+follows: $A_{c, l, p}$ and $B_{c, r, p}$. When using \texttt{Kokkos::OpenMP}, we
+will assume that the Views are \texttt{LayoutRight}, so $A_{i, j, k}$ will be
+right next to $A_{i, j, k+1}$ in memory, while $A_{i, j, k}$ will be very far
+from $A_{i+1, j, k}$ in memory. Each thread needs to do a dot product of a row
+in $A$ with a column in $B$, so a thread needs to loop through all of $p$ for
+the same value of $c$ and $l$ in $A$ and also loop through all of $p$ for the
+same $c$ and $r$ in $B$. Notice however that all the different values of $p$ in
+$A$ and $B$, where $c$, $l$, and $r$ are fixed, are next to each other in
+memory, since we are using \texttt{LayoutRight}. This means that it will be
+cache friendly for any thread. 
 
-In contrast, for \texttt{Kokkos::Cuda}, the memory accesses must
-be coalesced in the optimal case. 
-This can be achieved by using the same data, but storing it in \texttt{LayoutLeft} Views
-instead of \texttt{LayoutRight} views. In this case, $c$ values that differ by 1 are adjacent in memory.
-Therefore, if thread $x$ is
-responsible for calculating $C_{i, j, k}$, thread $x+1$ should responsible for
-calculating $C_{i+1, j, k}$. In this manner, by changing our threading policy and 
-the layout of our Views, our memory accesses are now coalesced, as desired. 
+In contrast, for \texttt{Kokkos::Cuda}, the memory accesses must be coalesced in
+the optimal case.  This can be achieved by using the same data, but storing it
+in \texttt{LayoutLeft} Views instead of \texttt{LayoutRight} Views. In this
+case, $c$ values that differ by 1 are adjacent in memory.  Therefore, if thread
+$x$ is responsible for calculating $C_{i, j, k}$, thread $x+1$ should
+responsible for calculating $C_{i+1, j, k}$. In this manner, by changing our
+threading policy and the layout of our Views, our memory accesses are now
+coalesced, as desired. 
 
 Finding the best way to lay out memory to optimize for both the CPU and GPU is
 not too difficult. One good technique is to first find the best way for caching (CPU),
@@ -155,13 +205,12 @@ be high. Using this flat parallel technique we have received many good results,
 an example of which can be seen in Figure~\ref{lst:ContractFieldFieldScalar
 speedup over serial}, but there are some issues with flat parallelism.
 
-It is important to find a way to arrange the indices of your data such that 
-caching and coalescing can be achieved by chaning the layout of the view (as we just did).
-If we had not laid out our indices as we did above, i.e. if $c$ were in the middle rahter 
-than on the left, then it can be difficult, or even impossible to come up with a threading 
-policy for each of CPU and GPU to match it. In this case, we are back to the scenario of 
-writing different code for different architectures, but the whole goal of our project 
-was to avoid doing so.
+It is important to find a way to arrange the indices of the data such that
+caching and coalescing can be achieved by changing the layout of the View (as we
+just did).  Laying out the data correctly allows threading policies for both the
+CPU and the GPU to match the data layout.  This is impossible or difficult with
+a bad data layout, forcing the developer to write different code for
+different architectures, which is undesirable.
 
 \begin{figure}[!ht]
 \includegraphics[scale=.8]{CFFSIndependent2.PNG}
@@ -173,22 +222,23 @@ times, does not fit into Sandia's use case of expected problem sizes.
 \label{lst:ContractFieldFieldScalar speedup over serial}} 
 \end{figure}
 
-Flat parallelism is an easy-to-implement, high-performing algorithm when there is 
-enough work to saturate the GPU. However, there isn't always enough independent work to 
-use flat parallelism. For example, on all the problems that have \texttt{DataData}
-in their name, the output is simply an array of scalars, meaning that only one
-thread per contraction can be used. The GPU is great for using tens of
-thousands of threads to do computation, but when the number of threads is
-severely limited, the CPU performs better, so other algorithms must be explored on the GPU. 
-For examples of these algorithms, see Section~\ref{sec:reduction}
+Flat parallelism is an easy-to-implement, high-performing algorithm when there
+is enough work to saturate the GPU. However, there isn't always enough
+independent work to use flat parallelism. For example, on all the problems that
+have \texttt{DataData} in their name, the output is simply an array of scalars,
+meaning that only one thread per contraction can be used. The GPU is great for
+using tens of thousands of threads to do computation, but when the number of
+threads is severely limited, the CPU performs better, so other algorithms must
+be explored on the GPU.  For examples of these algorithms, see
+Section~\ref{sec:reduction}
 
 Another feature of the GPU that can be leveraged that is outside the scope of
-flat parallelism is shared memory. Shared memory is essentially a user controlled cache
-on the GPU. Algorithms that use shared memory will be discussed in
-Section~\ref{slicing} and Section~\ref{sec:tiling}. The main benefits of not
-using shared memory are it is easier to code and the speedup of shared memory over flat parallelism 
-is relatively small compared to the speedup flat parallel algorithms reap over
-serial code. 
+flat parallelism is shared memory. Shared memory is essentially a user
+controlled cache on the GPU. Algorithms that use shared memory will be discussed
+in Section~\ref{sec:Slicing} and Section~\ref{sec:tiling}. The main benefits of not
+using shared memory are it is easier to code and the speedup of shared memory
+over flat parallelism is relatively small compared to the speedup flat parallel
+algorithms reap over serial code. 
 
 % Ellen
 \section{Reduction} \label{sec:reduction}
@@ -222,7 +272,6 @@ to saturate the GPU.
 In Kokkos, threads can be organized into teams\footnote{for seasoned Cuda
 programmers, teams correspond to Cuda blocks}.  Built-in reduction methods allow
 teams to merge the contributions of their constituent threads.
-
 Using this team-thread paradigm, we explored several methods of implementing
 \texttt{ContractDataDataTensor} using a reduction algorithm.
 
@@ -230,7 +279,7 @@ Using this team-thread paradigm, we explored several methods of implementing
     In this reduction algorithm, we assign one team per contraction, and each
     team has as many threads as there are elements in the \texttt{\_dim2}
     dimension.  Each thread therefore performs 
-    $\texttt{\_numPoints} \times \texttt{\_dim2}$ multiplications, and then
+    $\texttt{\_numPoints} \times \texttt{\_dim1}$ multiplications, and then
     combines its local sum with that
     of the other threads in the team.
 
@@ -242,7 +291,9 @@ Using this team-thread paradigm, we explored several methods of implementing
 
     float sum = 0;
     
-    // Each of the _dim2 threads contracts the qp and d1 dimensions.
+    // Each of the _dim2 threads contracts the qp and d1 dimensions.  All of the
+    // Views are layout right; d2 is stride 1.  This is coalesced, but not
+    // cached for the CPU.
     Kokkos::parallel_reduce(Kokkos::TeamThreadLoop(thread, _dim2),
     // We use an anonymous (lambda) function here:
     //      - [&] specifies that all automatic variables in the lambda are
@@ -290,7 +341,9 @@ in which the number of teams launched is \texttt{\_numCells}, and each team has
 \texttt{\_dim2} threads.
 
 \begin{figure}[ht]
+    \begin{centering}
     \includegraphics[scale=.55]{./VersusSerial_kokkosCudaTeamDepth1_clearCache_shadowfax}
+\end{centering}
     \caption[Performance of \texttt{ContractDataDataTensor} Team Depth
     1]{Speedup of \texttt{ContractDataDataTensor} Team Depth 1 reduction over
     serial
@@ -367,7 +420,8 @@ $\texttt{\_dim1}\times \texttt{\_dim2}$ threads.
 As shown in Figure~\ref{fig:ContractDataDataTensorDepth2}, this Team Depth 2
 algorithm performs better than serial for the three representative use case..
 In addition, the speedup is significant, and for large memory sizes, performs
-nearly as well as the flat parallel algorithm.  Given the necessary overhead of
+nearly as well as the flat parallel algorithm, as seen in
+Figure~\ref{fig:CDDT2d}.  Given the necessary overhead of
 performing a reduction, we believe this to be a fairly good algorithm for good
 performance across the
 board.
@@ -377,7 +431,7 @@ and \texttt{\_dim2} dimensions, this algorithm may suffer performance penalties
 or perhaps even bugs if these two dimensions are of unexpected sizes.  A more
 generalizable algorithm therefore would be preferable.
 
-\subsection{Teamstride}
+\subsection{Teamstride}\label{sec:Teamstride}
     A more robust algorithm is one we call the Teamstride algorithm, in which
     each contraction is still assigned to a team, but a fixed number of threads
     are spawned for each team.  These threads treat the three contraction
@@ -472,7 +526,8 @@ need to do a multiply then reduction, one quarter of the teams are created, and
 each team is responsible for calculating four times as many outputs elements.
 This case adds the code in
 Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase} to the functor's
-operator() function. \\
+operator() function.
+
 \begin{figure}[!ht]
     \begin{lstlisting}
 // The if case is where the special reduction case is handled
@@ -513,13 +568,17 @@ else {
 \label{lst:ContractFieldFieldScalarReductionSpecialCase}} 
 \end{figure}
 
-In the code of Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase}, the number of multiplies, that is need is numPoints. If that number is less than 16, then we want one team to do more than one output. Increasing the number of active threads per team leads to higher efficiency and speed.
-One thing that needs to be noted for the code in the special case is that an
-\texttt{atomic\_fetch\_add} is used instead of a \texttt{parallel\_reduce}. This is due to the fact
-that there is no \texttt{team\_reduce} function where half the threads reduce to one
-location while the other half reduce to another location. This has the side
-effect of requiring the output locations to be 0 before the calculation, while
-in the "normal" reduction algorithm that is not necessary. 
+In the code of Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase},
+the number of multiplies that is needed is numPoints. If that number is less
+than 16, then we want one team to do more than one output. Increasing the number
+of active threads per team leads to higher efficiency and speed.  One thing that
+needs to be noted for the code in the special case is that an
+\texttt{atomic\_fetch\_add} is used instead of a \texttt{parallel\_reduce}. This
+is due to the fact that there is no \texttt{parallel\_reduce} function where half
+the threads reduce to one location while the other half reduce to another
+location. This has the side effect of requiring the output locations to be 0
+before the calculation, while in the "normal" reduction algorithm that is not
+necessary. 
 
 Another point that needs to be reiterated is that this special case can still
 perform worse than the flat parallel algorithm, but its purpose is to increase
