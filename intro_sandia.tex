@@ -43,7 +43,7 @@ applications. Specifically, this clinic team aimed to rewrite some of these Tril
 efficient and thread-scalable on manycore architectures such as GPUs.
 
 As well as presenting Sandia with a set of faster kernels, Sandia has also
-requested that we present a general approach to parallelizing code using Kokkos. Many of the
+requested that we present a general approach to parallelizing code using their C++ library, Kokkos. Kokkos is described further in Section~\ref{KokkosSection}. Many of the
 mathematicians, engineers, and scientists at Sandia have little experience
 writing code for GPUs or large thread count coprocessors such as Intel's Xeon Phi. Over
 the course of our clinic project, we have uncovered a number of parallelization pitfalls 
@@ -119,7 +119,7 @@ Sandia, where the mathematicians, engineers and scientists are interested in
 using the most up-to-date architecture without
 needing to constantly overhaul their codebase.
 
-\section{Kokkos}
+\section{Kokkos} \label{KokkosSection}
 
 In order to mitigate the effects of architecture dependent code overhauls,
 Sandia is developing a C++ library called Kokkos, which is included in the
