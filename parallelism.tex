@@ -52,7 +52,7 @@ Figure~\ref{lst:repeats}.
     for (int repeatIndex = 0; repeatIndex < 10; ++repeatIndex) {
         tic = start timing
 
-        Kokkos::parallel_for(..., KokkosFunctor);
+        Kokkos::parallel_for( ... , KokkosFunctor);
         Kokkos::fence();
 
         toc = stop timing
@@ -577,7 +577,7 @@ In the code of Figure~\ref{lst:ContractFieldFieldScalarReductionSpecialCase},
 the number of multiplies that is needed is \texttt{numPoints}. If that number is less
 than 16, then we want one team to do more than one output. Increasing the number
 of active threads per team leads to higher efficiency and speed.  Note that the
-special case uses an \texttt{atomic\_fetch\_add} a \texttt{parallel\_reduce}.
+special case uses an \texttt{atomic\_fetch\_add} not a \texttt{parallel\_reduce}.
 This is due to the fact that there is no \texttt{parallel\_reduce} function
 where half the threads reduce to one location while the other half reduce to
 another location. This has the side effect of requiring the output locations to
