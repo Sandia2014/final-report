@@ -16,25 +16,20 @@ access pattern) and recorded the runtime of each version.  To reduce noise in
 the timing data, we repeated the same calculations five times and used the
 average time.
 
-<<<<<<< HEAD
-Note that because we were unsure how Kokkos implements the inter-team reductions, 
-we could not write a matching Cuda reduction.  Based on our project
-=======
 Note that because we were unsure how Kokkos implements the intra-team \texttt{parallel\_reduce()}
 function, we could not write a matching Cuda reduction.  Based on our project
->>>>>>> 30cda70fad6b65450d7313251a0545ce5a1289fc
 priorities, we chose not to pursue this further.
 
 These graphs present some of the performance differences and similarities of
 Kokkos, Cuda, and OpenMP. Figure~\ref{fig:ContractDataDataScalar Kokkos
 performance comparison} shows the raw times of Kokkos Cuda, Cuda, Kokkos OpenMP,
-and OpenMP for ContractDataDataScalar.
+and OpenMP for \texttt{ContractDataDataScalar}.
 
 \begin{figure}[!ht]
 {\includegraphics[scale=.7]{CDDS_FixedSerial.PNG}}
-\caption[ContractDataDataScalar Kokkos performance comparison]{
+\caption[\texttt{ContractDataDataScalar} Kokkos performance comparison]{
     Performance of Kokkos Cuda, Cuda, Kokkos OpenMP,
-and OpenMP for ContractDataDataScalar with a memory size of 1 GB.}
+and OpenMP for \texttt{ContractDataDataScalar} with a memory size of 1 GB.}
 \label{fig:ContractDataDataScalar Kokkos performance comparison}
 \end{figure}
 
@@ -53,14 +48,14 @@ problems require fewer blocks than the large problem sizes, so both Kokkos and
 Cuda launch enough blocks.  However, there is clearly a difference in the bigger
 problem sizes. 
 
-Figure~\ref{fig:cffscomparison} shows ContractFieldFieldScalar with the slicing
+Figure~\ref{fig:cffscomparison} shows \texttt{ContractFieldFieldScalar} with the slicing
 technique (which uses shared memory) for both Kokkos Cuda and Cuda.  It also
 includes the flat parallel algorithm in both Kokkos Cuda and Cuda.
 
 \begin{figure}[!ht]
 {\includegraphics[scale=.8]{CFFS_RawTimes_LargestSize2.png}}
-\caption[ContractFieldFieldScalar Kokkos performance comparison]{
-    Performance of the ``slicing'' nested parallelism approach.}
+\caption[\texttt{ContractFieldFieldScalar} Kokkos performance comparison]{
+    Performance of the ``slicing'' nested parallelism approach on \texttt{ContractFieldFieldScalar}.}
 \label{fig:cffscomparison}
 \end{figure}
 
@@ -168,7 +163,7 @@ perform on both the CPU and GPU while Cuda only runs on the GPU.
 In a program's computational portion, Cuda uses a kernel while Kokkos uses a
 functor.  However, for programs doing the same calculation, the parenthesis
 operator in a Kokkos functor is almost an exact replica of the code in
-the corresponding Cuda kernel. A Cuda kernel for ContractFieldFieldScalar is
+the corresponding Cuda kernel. A Cuda kernel for \texttt{ContractFieldFieldScalar} is
 shown in Figure~\ref{lst:ContractFieldFieldScalar Cuda kernel}.
 
 \begin{figure}[htb]
@@ -246,7 +241,7 @@ Although there are more lines of code in the Kokkos functor (the code required t
 declare the data members and the constructor), the Kokkos code is readable and
 uncluttered.
 
-The Kokkos functor does not need to calculate each thread's ID, while the Cuda
+The Kokkos functor does not need to calculate each thread's location, while the Cuda
 kernel has to use built-in constants such as \texttt{blockId.x} and \texttt{blockDim.x}.
 Indexing into a View is easier than indexing into a primitive C-style array,
 especially when changing the layout of the data between \texttt{LayoutLeft} and
@@ -256,12 +251,12 @@ especially when changing the layout of the data between \texttt{LayoutLeft} and
 \label{sec:Thoughts}
 
 Part of our project's goal was to document our experiences using Kokkos,
-including any issues we run into.  As with any new tool or language, we
+including any issues we encountered.  As with any new tool or language, we
 initially had some trouble getting used to Kokkos.  However, most of our initial
 issues disappeared once we gained more experience with Kokkos.
 
-Because our liaison, Dr. Carter Edwards, installed Kokkos on our machine, we are
-unable provide feedback regarding the process of downloading and installing
+Our liaison, Dr. Carter Edwards, installed Kokkos on our machine, so we are
+unable to provide feedback regarding the process of downloading and installing
 Kokkos.  We did, however, encounter some trouble in compiling and linking
 against Kokkos. Our difficulties were mostly a consequence of insufficient or
 outdated documentation of the compiler and linker flags Kokkos requires.  The

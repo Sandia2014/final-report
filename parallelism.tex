@@ -5,14 +5,15 @@
 
 Throughout our project, it was important to us to understand how performant our
 code was compared to the existing code in Intrepid.  To do so, our team ran
-performance testing using a machine equipped with an Intel(R) Xeon(R) E5-2630 v2
-@ 2.60GHz CPU and an NVIDIA Tesla K20m GPU for our Cuda and Kokkos GPU timing
+performance testing using a machine equipped with an Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5-2630 v2
+@ 2.60GHz CPU for our serial, OpenMP and Kokkos OpenMP testing and an NVIDIA 
+Tesla K20m GPU for our Cuda and Kokkos GPU timing
 testing. 
 
-In order to generate plots that help to understand how our code performs, we
-collected data for each of the different functors we created.  For serial code
+In order to generate plots that help understand how our code performs, we
+collected data for each of our functors.  For serial code
 and OpenMP code, this simply meant getting the time\footnote{We use
-clock\_gettime instead of the C++11 high resolution timers for compatibility with
+\texttt{clock\_gettime} instead of the C++11 high resolution timers for compatibility with
 nvcc} before the block of code, and then getting the difference in time after
 the block of code. See Figure~\ref{lst:OMPTiming} for an example of this. For
 Cuda or Kokkos code, we instead start the clock before the kernel launch or call
@@ -37,9 +38,9 @@ that we know our code has finished running.
 
 In order to smooth our data, we run our timing tests 10 times, and use the
 average time over all 10 attempts in our results. This was necessary in order to
-counteract non-determinism and noise. This has the potential to lead to caching
-effects causing later attempts to be faster. In order to minimize this, in
-between timing tests, we run kernels on the CPU and GPU that load a bunch of
+counteract non-determinism and noise, but also has the potential to lead to caching
+effects causing later attempts to be faster. In order to minimize caching, in
+between timing tests we run kernels on the CPU and GPU that load a bunch of
 junk data into memory, and then access it for dummy sums until we are satisfied
 that the cache is clean.  Pseudocode for this can be seen in
 Figure~\ref{lst:repeats}.
@@ -612,10 +613,12 @@ for the reduction algorithm with the special case.}
 
 \subsection{A Note on Data Shape} \label{sec:DataShape}
 In both of the next two approaches, we benchmarked our code using a different data layout than the native
-Sandia code. For example, in ContractFieldFieldScalar our input matrices were placed in memory as $A_{c,l,p}$ and
+Sandia code. For example, in \texttt{ContractFieldFieldScalar} our input matrices were placed in memory as $A_{c,l,p}$ and
 $B_{c,p,r}$ instead of $A_{c,l,p}$ and $B_{c,r,p}$ (as they are arranged in the native Sandia code).
 This means that the code we wrote would have to be changed to account for this different layout
-before it could be integrated into Sandia's existing code base. We anticipate that this could be done without a
+before it could be integrated into Sandia's existing code base. 
+
+We anticipate that this could be done without a
 significant performance decrease, since in this case, the change in data layout can be accompanied by a change in 
 memory access pattern such that the accesses are identical in both Sandia's layout and the code we've written.
 Hopefully, once cartesian product reduction spaces are implemented (discussed in \ref{sec:Thoughts}) these 
@@ -749,7 +752,7 @@ results, as shown by Figure~\ref{fig:CFFSSlicingVSIndepentent}.
     \includegraphics[width=5in]{CFFS_Slicing}
     \caption[\texttt{ContractFieldFieldScalar} speedup over
     flat parallel]{\texttt{ContractFieldFieldScalar} slicing speedup compared to
-    independent parallelism}
+    flat (interactionless) parallelism}
 \label{fig:CFFSSlicingVSIndepentent}
 \end{figure}
 
