@@ -47,20 +47,22 @@ Figure~\ref{lst:repeats}.
 
 \begin{figure}[ht]
 \begin{lstlisting}
+    Kokkos::deep_copy(copy data to GPU);
+    elapsedTime = 0
     for (int repeatIndex = 0; repeatIndex < 10; ++repeatIndex) {
-        if (clearCaches) {
-            // Run dummy kernel to clear GPU caches
-        }
+        tic = start timing
 
-        parallel_for(..., KokkosFunctor);
+        Kokkos::parallel_for(..., KokkosFunctor);
         Kokkos::fence();
 
-        if (clearCaches) {
-            // Run dummy kernel to clear GPU caches
-        }
+        toc = stop timing
+        elapsedTime += toc - tic
 
+        Kokkos::parallel_for(..., DummyKokkosFunctorToClearCache);
+        Kokkos::fence();
     }
-
+    elapsedTime /= 10;
+    Kokkos::deep_copy(copy results back to CPU);
  \end{lstlisting}
 \caption{Pseudocode of running repeats for timing}
 \label{lst:repeats}
